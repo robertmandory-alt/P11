@@ -10,7 +10,8 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         hmr: {
           port: 5000
-        }
+        },
+        allowedHosts: true
       },
       plugins: [react()],
       define: {

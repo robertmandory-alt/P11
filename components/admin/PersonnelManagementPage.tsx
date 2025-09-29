@@ -97,8 +97,8 @@ const PersonnelManagementPage: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4">{statusMap[p.driver_status]}</td>
                                     <td className="px-6 py-4 flex space-x-2 space-x-reverse">
-                                        <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800"><EditIcon className="w-5 h-5" /></button>
-                                        <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800"><DeleteIcon className="w-5 h-5" /></button>
+                                        <button type="button" onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800"><EditIcon className="w-5 h-5" /></button>
+                                        <button type="button" onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800"><DeleteIcon className="w-5 h-5" /></button>
                                     </td>
                                 </tr>
                             ))}
@@ -168,7 +168,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ isOpen, onClose, person
                 </div>
                  <div>
                     <label className="block mb-2 text-sm font-medium text-gray-900">وضعیت رانندگی</label>
-                    <select name="driver_status" value={formData.driver_status} onChange={handleChange} className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block.w-full p-2.5">
+                    <select name="driver_status" value={formData.driver_status} onChange={handleChange} className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                         <option value="Driver">راننده</option>
                         <option value="Non-Driver">غیر راننده</option>
                     </select>

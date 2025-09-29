@@ -98,8 +98,8 @@ const ShiftManagementPage: React.FC = () => {
                                     <td className="px-6 py-4">{shift.holiday_hours ?? '---'}</td>
                                     <td className="px-6 py-4">{shift.effect ? effectMap[shift.effect] : '---'}</td>
                                     <td className="px-6 py-4 flex space-x-2 space-x-reverse">
-                                        <button onClick={() => handleEdit(shift)} className="text-blue-600 hover:text-blue-800"><EditIcon className="w-5 h-5" /></button>
-                                        <button onClick={() => handleDelete(shift.id)} className="text-red-600 hover:text-red-800"><DeleteIcon className="w-5 h-5" /></button>
+                                        <button type="button" onClick={() => handleEdit(shift)} className="text-blue-600 hover:text-blue-800"><EditIcon className="w-5 h-5" /></button>
+                                        <button type="button" onClick={() => handleDelete(shift.id)} className="text-red-600 hover:text-red-800"><DeleteIcon className="w-5 h-5" /></button>
                                     </td>
                                 </tr>
                             ))}

@@ -6,6 +6,9 @@ A web application for the centralized management, recording, and reporting of mo
 ## Recent Changes (September 29, 2025)
 - Initial project setup in Replit environment
 - Configured Vite to run on port 5000 for Replit proxy compatibility
+- **Fixed host blocking error**: Added `allowedHosts: true` to Vite config to allow Replit proxy
+- **Fixed delete functionality**: Added `type="button"` to admin delete buttons preventing form submission behavior
+- **Fixed CSS class error**: Corrected malformed Tailwind class in PersonnelManagementPage
 - Set up development workflow for frontend
 - Application successfully running with login page displayed
 - Supabase integration present but using hardcoded credentials

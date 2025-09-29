@@ -89,8 +89,8 @@ const BaseManagementPage: React.FC = () => {
                                     <td className="px-6 py-4">{base.number}</td>
                                     <td className="px-6 py-4 max-w-xs truncate">{base.description || '---'}</td>
                                     <td className="px-6 py-4 flex space-x-2 space-x-reverse">
-                                        <button onClick={() => handleEdit(base)} className="text-blue-600 hover:text-blue-800"><EditIcon className="w-5 h-5" /></button>
-                                        <button onClick={() => handleDelete(base.id)} className="text-red-600 hover:text-red-800"><DeleteIcon className="w-5 h-5" /></button>
+                                        <button type="button" onClick={() => handleEdit(base)} className="text-blue-600 hover:text-blue-800"><EditIcon className="w-5 h-5" /></button>
+                                        <button type="button" onClick={() => handleDelete(base.id)} className="text-red-600 hover:text-red-800"><DeleteIcon className="w-5 h-5" /></button>
                                     </td>
                                 </tr>
                             ))}
