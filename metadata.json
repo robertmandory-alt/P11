@@ -1,0 +1,5 @@
+{
+  "name": "Emergency Personnel Performance Management",
+  "description": "A web application for the centralized management, recording, and reporting of monthly performance statistics for emergency personnel, designed for administrators and base supervisors. The system is in Persian and uses the Shamsi calendar.",
+  "requestFramePermissions": []
+}
