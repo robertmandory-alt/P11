@@ -318,7 +318,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         // 3. Upsert submission status
-        const { error: upsertError } = await supabase.from('performance_submissions').upsert({ year_month: key, base_id: myBaseId, status: status });
+        const { error: upsertError } = await supabase
+            .from('performance_submissions')
+            .upsert(
+                { year_month: key, base_id: myBaseId, status: status },
+                { onConflict: 'year_month,base_id' }
+            );
         if (upsertError) { console.error("Error upserting status:", upsertError.message); return false; }
 
         // 4. Save totals to localStorage (as it's UI state)
