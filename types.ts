@@ -40,7 +40,7 @@ export interface Base {
 }
 
 export interface PerformanceRecord {
-    id?: string;
+    id: string;
     personnel_id: string;
     day: number; // Day of the month
     shift_id: string;

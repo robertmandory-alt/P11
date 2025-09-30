@@ -307,38 +307,60 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         const key = `${year}-${month}`;
 
-        // 1. Delete old records for this base and month
-        const { error: deleteError } = await supabase.from('performance_records').delete().match({ year_month: key, submitting_base_id: myBaseId });
-        if (deleteError) { console.error("Error deleting old records:", deleteError.message); return false; }
-        
-        // 2. Upsert new records (with proper conflict resolution)
-        if (records.length > 0) {
-            const { error: upsertRecordsError } = await supabase
+        try {
+            // 1. Delete old records for this base and month
+            const { error: deleteError } = await supabase
                 .from('performance_records')
-                .upsert(records, { 
-                    onConflict: 'year_month,personnel_id,day,submitting_base_id',
-                    ignoreDuplicates: false 
-                });
-            if (upsertRecordsError) { 
-                console.error("Error upserting records:", upsertRecordsError.message); 
-                alert('خطا در ذخیره رکوردها: ' + upsertRecordsError.message);
-                return false; 
+                .delete()
+                .match({ year_month: key, submitting_base_id: myBaseId });
+            
+            if (deleteError) {
+                console.error("Error deleting old records:", deleteError.message);
+                return false;
             }
+            
+            // 2. Insert new records with proper IDs
+            const recordsWithIds = records.map(record => ({
+                ...record,
+                id: record.id || crypto.randomUUID(),
+                year_month: key,
+                submitting_base_id: myBaseId
+            }));
+            
+        if (records.length > 0) {
+                const { error: insertError } = await supabase
+                .from('performance_records')
+                    .insert(recordsWithIds);
+                
+                if (insertError) {
+                    console.error("Error inserting records:", insertError.message);
+                    alert('خطا در ذخیره رکوردها: ' + insertError.message);
+                return false; 
+                }
         }
 
-        // 3. Upsert submission status
-        const { error: upsertError } = await supabase
+            // 3. Upsert submission status
+            const { error: upsertStatusError } = await supabase
             .from('performance_submissions')
             .upsert(
                 { year_month: key, base_id: myBaseId, status: status },
                 { onConflict: 'year_month,base_id' }
             );
-        if (upsertError) { console.error("Error upserting status:", upsertError.message); return false; }
+            
+            if (upsertStatusError) {
+                console.error("Error upserting status:", upsertStatusError.message);
+                return false;
+            }
 
-        // 4. Save totals to localStorage (as it's UI state)
-        localStorage.setItem(`totals-${key}`, JSON.stringify(totals));
+            // 4. Save totals to localStorage (as it's UI state)
+            localStorage.setItem(`totals-${key}`, JSON.stringify(totals));
 
-        return true;
+            return true;
+        } catch (error: any) {
+            console.error("Error saving performance data:", error.message);
+            alert('خطا در ذخیره اطلاعات: ' + error.message);
+            return false;
+        }
     };
 
     const contextValue = {

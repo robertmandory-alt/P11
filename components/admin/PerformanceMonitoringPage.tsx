@@ -34,11 +34,30 @@ const PerformanceMonitoringPage: React.FC = () => {
 
     const handleApplyFilter = useCallback(async () => {
         setIsLoading(true);
-        const data = await loadPerformanceDataForMonth(filters.year, filters.month);
-        const submittedBaseIds = new Set(data.submissions.filter(s => s.status === 'submitted').map(s => s.base_id));
-        const submittedRecords = data.records.filter(r => submittedBaseIds.has(r.submitting_base_id));
+        try {
+            const data = await loadPerformanceDataForMonth(filters.year, filters.month);
+            console.log('Loaded performance data:', data);
+            
+            // Only show records from bases that have submitted their data
+            const submittedBaseIds = new Set(
+                data.submissions
+                    .filter(s => s.status === 'submitted')
+                    .map(s => s.base_id)
+            );
+            
+            console.log('Submitted base IDs:', Array.from(submittedBaseIds));
+            
+            const submittedRecords = data.records.filter(r => 
+                submittedBaseIds.has(r.submitting_base_id)
+            );
+            
+            console.log('Filtered submitted records:', submittedRecords);
         
-        setGridData({ records: submittedRecords, submissions: data.submissions });
+            setGridData({ records: submittedRecords, submissions: data.submissions });
+        } catch (error) {
+            console.error('Error loading performance data:', error);
+            alert('خطا در بارگذاری اطلاعات عملکرد');
+        }
         setIsLoading(false);
     }, [filters.year, filters.month, loadPerformanceDataForMonth]);
 

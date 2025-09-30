@@ -157,6 +157,7 @@ const PerformanceSubmitPage: React.FC = () => {
             }
             // Add or Update record
             const newRecord: PerformanceRecord = {
+                id: crypto.randomUUID(),
                 ...currentCell,
                 ...recordData,
                 personnel_id: currentCell.personnelId,
@@ -165,7 +166,7 @@ const PerformanceSubmitPage: React.FC = () => {
             };
             if (existingIndex > -1) {
                 const updated = [...prev];
-                updated[existingIndex] = newRecord;
+                updated[existingIndex] = { ...updated[existingIndex], ...recordData };
                 return updated;
             }
             return [...prev, newRecord];
