@@ -311,10 +311,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { error: deleteError } = await supabase.from('performance_records').delete().match({ year_month: key, submitting_base_id: myBaseId });
         if (deleteError) { console.error("Error deleting old records:", deleteError.message); return false; }
         
-        // 2. Insert new records
+        // 2. Upsert new records (with proper conflict resolution)
         if (records.length > 0) {
-            const { error: insertError } = await supabase.from('performance_records').insert(records);
-            if (insertError) { console.error("Error inserting new records:", insertError.message); return false; }
+            const { error: upsertRecordsError } = await supabase
+                .from('performance_records')
+                .upsert(records, { 
+                    onConflict: 'year_month,personnel_id,day,submitting_base_id',
+                    ignoreDuplicates: false 
+                });
+            if (upsertRecordsError) { 
+                console.error("Error upserting records:", upsertRecordsError.message); 
+                alert('خطا در ذخیره رکوردها: ' + upsertRecordsError.message);
+                return false; 
+            }
         }
 
         // 3. Upsert submission status
