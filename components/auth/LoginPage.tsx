@@ -60,7 +60,7 @@ const LoginPage: React.FC = () => {
             <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-xl shadow-lg">
                 <div className="text-center">
                      <div className="flex justify-center mb-4">
-                        <div className="bg-blue-600 rounded-lg p-3 text-white">
+                        <div className="bg-sky-400 rounded-lg p-3 text-white">
                            <SystemIcon className="w-8 h-8" />
                         </div>
                     </div>
@@ -83,7 +83,7 @@ const LoginPage: React.FC = () => {
                                 required
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-sky-400 focus:border-sky-400 focus:z-10 sm:text-sm"
                                 placeholder="نام کاربری (فقط حروف و اعداد انگلیسی)"
                             />
                         </div>
@@ -96,7 +96,7 @@ const LoginPage: React.FC = () => {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-sky-400 focus:border-sky-400 focus:z-10 sm:text-sm"
                                 placeholder="رمز عبور"
                             />
                         </div>
@@ -110,7 +110,7 @@ const LoginPage: React.FC = () => {
                                     required
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                    className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-sky-400 focus:border-sky-400 focus:z-10 sm:text-sm"
                                     placeholder="تکرار رمز عبور"
                                 />
                             </div>
@@ -123,7 +123,7 @@ const LoginPage: React.FC = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md group hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 disabled:cursor-not-allowed"
+                            className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-sky-500 border border-transparent rounded-md group hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-400 disabled:bg-sky-300 disabled:cursor-not-allowed"
                         >
                             {loading ? 'در حال پردازش...' : (isSigningUp ? 'ثبت نام' : 'ورود')}
                         </button>
@@ -131,7 +131,7 @@ const LoginPage: React.FC = () => {
                 </form>
 
                 <div className="text-sm text-center">
-                    <button onClick={toggleForm} className="font-medium text-blue-600 hover:text-blue-500">
+                    <button onClick={toggleForm} className="font-medium text-sky-500 hover:text-sky-400">
                         {isSigningUp ? 'حساب کاربری دارید؟ وارد شوید' : 'حساب کاربری ندارید؟ ثبت نام کنید'}
                     </button>
                 </div>

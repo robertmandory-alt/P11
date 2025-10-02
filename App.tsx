@@ -11,7 +11,7 @@ const AppContent: React.FC = () => {
         return (
             <div className="flex items-center justify-center min-h-screen bg-slate-100">
                 <div className="flex flex-col items-center space-y-4">
-                    <SystemIcon className="w-12 h-12 text-blue-600 animate-spin" />
+                    <SystemIcon className="w-12 h-12 text-sky-500 animate-spin" />
                     <p className="text-lg font-semibold text-gray-700">در حال بارگذاری اطلاعات...</p>
                 </div>
             </div>
