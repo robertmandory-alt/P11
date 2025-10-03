@@ -17,7 +17,7 @@ const LoginPage: React.FC = () => {
         setError('');
         setSuccessMessage('');
         setLoading(true);
-        const result = await login(username + '@example.com', password);
+        const result = await login(username, password);
         if (!result.success) {
             setError(result.error || 'خطای ناشناخته رخ داد.');
         }
