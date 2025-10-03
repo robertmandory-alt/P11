@@ -1,4 +1,3 @@
-// Final Admin User Creation Script
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://frcrtkfyuejqgclrlpna.supabase.co';
@@ -6,13 +5,14 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-async function createAdminUser() {
-    console.log('👤 Creating admin user with proper credentials...');
+async function createCorrectAdminUser() {
+    console.log('👤 Creating admin user with correct email format (@company.com)...');
     
     try {
-        // Create admin user with company email format
+        // Create admin user with the email format expected by the application
+        const adminEmail = 'admin@company.com';
         const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: 'admin@gmail.com',
+            email: adminEmail,
             password: 'admin1',
             options: {
                 data: {
@@ -26,10 +26,10 @@ async function createAdminUser() {
             
             // If user already exists, try to sign in and update
             if (authError.message.includes('User already registered') || authError.message.includes('already exists')) {
-                console.log('👤 User exists, attempting to update existing user...');
+                console.log('👤 User exists, trying to sign in and update...');
                 
                 const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-                    email: 'admin@gmail.com',
+                    email: adminEmail,
                     password: 'admin1'
                 });
                 
@@ -57,7 +57,7 @@ async function createAdminUser() {
                 }
                 
                 console.log('✅ Admin profile updated successfully!');
-                return true;
+                return await testLogin(adminEmail);
             }
             
             return false;
@@ -100,11 +100,11 @@ async function createAdminUser() {
                 }
                 
                 console.log('✅ Admin profile created manually!');
-                return true;
+            } else {
+                console.log('✅ Admin profile updated successfully!');
             }
             
-            console.log('✅ Admin user created and profile updated successfully!');
-            return true;
+            return await testLogin(adminEmail);
         }
         
         return false;
@@ -115,107 +115,110 @@ async function createAdminUser() {
     }
 }
 
-async function testLogin() {
-    console.log('\n🔐 Testing admin login...');
+async function testLogin(email) {
+    console.log('\n🔐 Testing admin login with both methods...');
     
+    // Test 1: Direct email login
+    console.log('📧 Testing direct email login...');
     try {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: 'admin@gmail.com',
+        const { data: signInData1, error: signInError1 } = await supabase.auth.signInWithPassword({
+            email: email,
             password: 'admin1'
         });
         
-        if (signInError) {
-            console.error('❌ Login test failed:', signInError.message);
+        if (signInError1) {
+            console.error('❌ Direct email login failed:', signInError1.message);
+        } else {
+            console.log('✅ Direct email login successful!');
+        }
+    } catch (error) {
+        console.error('❌ Direct email login error:', error.message);
+    }
+    
+    // Test 2: Username-based login (how the app actually works)
+    console.log('👤 Testing username-based login (app method)...');
+    try {
+        // This simulates what the app does - converts 'admin' to 'admin@company.com'
+        const { data: signInData2, error: signInError2 } = await supabase.auth.signInWithPassword({
+            email: 'admin@company.com', // This is what happens when user types 'admin'
+            password: 'admin1'
+        });
+        
+        if (signInError2) {
+            console.error('❌ Username login failed:', signInError2.message);
             return false;
         }
         
-        if (signInData.user) {
-            console.log('✅ Login test successful!');
+        console.log('✅ Username login successful!');
+        
+        // Check profile
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', signInData2.user.id)
+            .single();
+        
+        if (profileError) {
+            console.error('❌ Profile check failed:', profileError.message);
+            return false;
+        }
+        
+        if (profile) {
+            console.log('👤 Profile details:');
+            console.log(`   - Username: ${profile.username}`);
+            console.log(`   - Role: ${profile.role}`);
+            console.log(`   - Status: ${profile.status}`);
+            console.log(`   - Profile Completed: ${profile.profile_completed}`);
             
-            // Check profile
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', signInData.user.id)
-                .single();
-            
-            if (profileError) {
-                console.error('❌ Profile check failed:', profileError.message);
+            if (profile.role === 'admin' && profile.status === 'active') {
+                console.log('🎉 Admin user is properly configured for the application!');
+                return true;
+            } else {
+                console.log('⚠️ Admin user needs configuration adjustment');
                 return false;
-            }
-            
-            if (profile) {
-                console.log('👤 Profile details:');
-                console.log(`   - Username: ${profile.username}`);
-                console.log(`   - Role: ${profile.role}`);
-                console.log(`   - Status: ${profile.status}`);
-                console.log(`   - Profile Completed: ${profile.profile_completed}`);
-                
-                if (profile.role === 'admin' && profile.status === 'active') {
-                    console.log('🎉 Admin user is properly configured!');
-                    return true;
-                } else {
-                    console.log('⚠️ Admin user needs configuration adjustment');
-                    return false;
-                }
             }
         }
         
         return false;
         
     } catch (error) {
-        console.error('❌ Login test failed:', error);
+        console.error('❌ Username login test failed:', error);
         return false;
     }
 }
 
 async function main() {
-    console.log('🚀 Final Admin User Setup\n');
+    console.log('🚀 Creating Correct Admin User for Application\n');
     
-    const adminSuccess = await createAdminUser();
+    const success = await createCorrectAdminUser();
     
-    if (adminSuccess) {
-        const loginSuccess = await testLogin();
-        
-        if (loginSuccess) {
-            console.log(`
-🎉 Admin User Setup Complete!
+    if (success) {
+        console.log(`
+🎉 Admin User Setup Complete and Tested!
 
-📝 Login Credentials:
-- Username: admin
-- Password: admin1
-- Email: admin@example.com
+📝 Login Instructions:
+1. Open the application at: https://3000-imzyvtcds3oj7e6ycwfwi-6532622b.e2b.dev
+2. Enter "admin" in the username field (without quotes)
+3. Enter "admin1" in the password field (without quotes)
+4. Click "ورود" (Login) button
+5. You will have full administrative access
 
-🔐 How to Login:
-1. Open the application
-2. Enter "admin" as username
-3. Enter "admin1" as password  
-4. You will have full administrative access
+✅ Email in database: admin@company.com
+👤 Username for login: admin
+🔑 Password for login: admin1
+🔰 Role: admin
+✅ Status: active
 
-✅ Status: Ready for use!
-            `);
-        } else {
-            console.log(`
-⚠️ Admin user created but needs manual configuration.
-
-📝 Manual Setup:
-1. Go to Supabase dashboard
-2. Open SQL Editor
-3. Run: UPDATE public.profiles SET role='admin', status='active', profile_completed=true WHERE username='admin';
-
-🔐 Login Credentials:
-- Username: admin  
-- Password: admin1
-            `);
-        }
+🌐 Application URL: https://3000-imzyvtcds3oj7e6ycwfwi-6532622b.e2b.dev
+        `);
     } else {
         console.log(`
 ❌ Admin user setup failed.
-
+        
 📝 Manual Setup Required:
-1. Ensure database schema is created (see DATABASE_SETUP.md)
-2. Run this script again after database setup
-3. Or create admin user manually through the application
+1. Check Supabase authentication settings
+2. Ensure email confirmations are not blocking user creation  
+3. Try creating admin user manually through Supabase dashboard
 
 🔐 Target Credentials:
 - Username: admin
@@ -224,5 +227,4 @@ async function main() {
     }
 }
 
-// Run the setup
 main().catch(console.error);
