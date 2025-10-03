@@ -1,182 +1,122 @@
 # Emergency Personnel Performance Management System
 
 ## Project Overview
+
 - **Name**: Emergency Personnel Performance Management System
-- **Goal**: Comprehensive management system for tracking emergency personnel performance, scheduling, and administrative tasks
-- **Platform**: React + TypeScript + Supabase
-- **Target Users**: Emergency service administrators and personnel
+- **Goal**: Comprehensive system for tracking and managing emergency personnel performance and shifts
+- **Technology**: React + TypeScript + Supabase + Vite
+- **Status**: ✅ Active and Deployed
 
-## 🌐 Live Application
-- **Application URL**: https://3000-igk3zxc9pn8j5y4e8y0qq-6532622b.e2b.dev
-- **GitHub Repository**: https://github.com/robertmandory-alt/P22
+## 🔗 URLs
 
-## 🔐 Admin Login Credentials
-- **Username**: admin
-- **Password**: admin1
-- **Email**: admin@gmail.com (for direct email login)
+- **Development**: https://3000-igk3zxc9pn8j5y4e8y0qq-6532622b.e2b.dev
+- **GitHub Repository**: https://github.com/robertmandory-alt/P22.git
+- **Supabase Database**: https://frcrtkfyuejqgclrlpna.supabase.co
 
-## 📊 Current Features
+## 🎯 Currently Completed Features
 
-### ✅ Completed Features
-1. **Authentication System**
-   - User registration and login
-   - Admin/user role-based access control
-   - Profile management with approval workflow
-   
-2. **User Management**
-   - Admin panel for user approval/rejection
-   - Profile editing and status management
-   - Role assignment (admin/user)
+### ✅ Authentication System
+- User registration and login
+- Role-based access control (admin/user)
+- Profile management with approval workflow
+- Secure authentication via Supabase Auth
 
-3. **Personnel Management**
-   - Add, edit, delete personnel records
-   - Employment status tracking (Official/Contractual)
-   - Productivity status (Productive/Non-Productive)
-   - Driver status classification
-   - Base assignment
+### ✅ Base Management
+- Create, edit, delete organizational bases
+- Support for multiple base types (Urban, Road, Bus, Headquarters, Support)
+- Base assignment to personnel and supervisors
 
-4. **Base Management**
-   - Organizational unit management
-   - Base types: Urban, Road, Bus, Headquarters, Support
-   - Hierarchical organization structure
+### ✅ Personnel Management
+- Complete personnel records management
+- Employment status tracking (Official/Contractual)
+- Productivity status (Productive/Non-Productive)
+- Driver status classification
+- Base assignment for personnel
 
-5. **Shift Management**
-   - Work shift definition and management
-   - Shift types: Work, Leave, Miscellaneous
-   - Hour calculation and holiday compensation
-   - Performance effect tracking (Incremental/Decremental)
+### ✅ Shift Management
+- Work shift type definitions
+- Shift codes and equivalent hours
+- Holiday hours and incremental/decremental effects
+- Support for Work, Leave, and Miscellaneous shift types
 
-6. **Performance Tracking**
-   - Daily performance record entry
-   - Monthly performance submissions
-   - Base-specific performance management
-   - Draft/submitted status tracking
+### ✅ Performance Tracking
+- Monthly performance record submission
+- Day-by-day shift assignment tracking
+- Submission status management (draft/submitted)
+- Base-specific performance reporting
 
-### 🚀 Key Functional URIs
+### ✅ Admin Dashboard
+- Complete administrative interface
+- User management and approval
+- Data management for all entities
+- Performance monitoring across all bases
 
-#### Authentication
-- `POST /auth/login` - User login with username/email and password
-- `POST /auth/signup` - New user registration
-- `POST /auth/logout` - User logout
+## 📊 Data Architecture
 
-#### Admin Panel
-- `GET /admin/users` - List all users (admin only)
-- `PUT /admin/users/:id/approve` - Approve pending users
-- `DELETE /admin/users/:id` - Delete user accounts
-
-#### Personnel Management
-- `GET /api/personnel` - List all personnel
-- `POST /api/personnel` - Create new personnel record
-- `PUT /api/personnel/:id` - Update personnel information
-- `DELETE /api/personnel/:id` - Remove personnel record
-
-#### Performance Management
-- `GET /api/performance/:year/:month` - Get monthly performance data
-- `POST /api/performance/submit` - Submit monthly performance records
-- `PUT /api/performance/draft` - Save draft performance data
-
-## 🗄️ Data Architecture
-
-### Database Schema (Supabase)
-```sql
-- profiles: User accounts linked to auth.users
-- bases: Organizational units/departments
-- personnel: Staff member records
-- shifts: Work shift types and definitions
-- performance_records: Daily performance tracking
-- performance_submissions: Monthly submission status
-```
-
-### Data Models
-- **UserProfile**: User authentication and role management
-- **Personnel**: Staff member information and classifications
-- **Base**: Organizational units with type categorization
-- **WorkShift**: Shift definitions with time and effect calculations
-- **PerformanceRecord**: Daily performance tracking per personnel
-- **PerformanceSubmission**: Monthly submission workflow management
+### Database Tables (Supabase)
+- **`profiles`** - User accounts linked to auth.users
+- **`bases`** - Organizational units/stations
+- **`personnel`** - Staff member records
+- **`shifts`** - Work shift type definitions
+- **`performance_records`** - Daily performance tracking
+- **`performance_submissions`** - Monthly submission status
 
 ### Storage Services
-- **Supabase Auth**: User authentication and session management
-- **Supabase Database**: PostgreSQL with Row Level Security (RLS)
-- **Real-time Sync**: Live updates for collaborative management
+- **Primary Database**: Supabase PostgreSQL with Row Level Security (RLS)
+- **Authentication**: Supabase Auth with email/password
+- **Real-time**: Supabase real-time subscriptions for live updates
 
-## 🏗️ Database Setup
+### Data Flow
+1. **Authentication**: Users log in via Supabase Auth
+2. **Profile Check**: System verifies user profile and permissions
+3. **Data Access**: RLS policies control data visibility based on roles
+4. **Performance Entry**: Users enter daily performance data
+5. **Submission**: Monthly data submitted for review
+6. **Reporting**: Admins can view all submitted performance data
 
-### Critical Setup Required
-**The database schema must be created manually in Supabase before the application will function properly.**
+## 🔐 Admin Login Credentials
 
-#### Step-by-step Setup:
-1. Open your Supabase dashboard: https://frcrtkfyuejqgclrlpna.supabase.co
-2. Navigate to SQL Editor
-3. Execute the SQL schema from `DATABASE_SETUP.md`
-4. Create admin user through the application signup
-5. Update admin profile: `UPDATE profiles SET role='admin', status='active' WHERE username='admin'`
+- **Username**: `admin`
+- **Password**: `admin1`
+- **Email**: `admin@company.com`
 
-### Sample Data Included:
-- Headquarters base (HQ-001)
-- Sample personnel records
-- Standard work shifts (8-hour work, daily leave, night shift)
-- Performance tracking templates
-
-## 🎯 User Guide
-
-### For Administrators:
-1. **Login** with admin credentials
-2. **Approve Users** in the admin panel
-3. **Manage Personnel** - add staff, assign bases, update statuses
-4. **Define Shifts** - create shift types, set hours and effects  
-5. **Monitor Performance** - review submissions, track productivity
-6. **System Management** - user roles, base configuration
+## 👥 User Guide
 
 ### For Regular Users:
-1. **Register** and wait for admin approval
-2. **View Personnel** assigned to your base
-3. **Enter Performance Data** daily for assigned staff
-4. **Submit Monthly Reports** when complete
-5. **Track Submissions** and status updates
+1. **Registration**: Sign up with username and password
+2. **Approval**: Wait for admin approval (status changes from 'pending' to 'active')
+3. **Login**: Use username/password to access the system
+4. **Performance Entry**: Enter daily shift performance data
+5. **Monthly Submission**: Submit completed monthly performance reports
+
+### For Administrators:
+1. **Login**: Use admin credentials above
+2. **User Management**: Approve new users and manage existing accounts
+3. **Data Management**: Add/edit bases, personnel, and shift types
+4. **Performance Monitoring**: View submitted performance reports
+5. **System Administration**: Full access to all system functions
+
+### Navigation:
+- **Performance Entry**: Main dashboard for data entry
+- **Personnel Management**: Staff records management
+- **Shift Management**: Work shift definitions
+- **Base Management**: Organizational unit management
+- **User Management**: Account and permission management
 
 ## 🚀 Deployment
 
-### Current Deployment Status
-- ✅ **Active** - Development server running
-- ✅ **Supabase Integration** - Database connected
-- ⚠️ **Database Setup** - Requires manual schema creation (see DATABASE_SETUP.md)
+- **Platform**: Vite Development Server
+- **Status**: ✅ Active
+- **Tech Stack**: React + TypeScript + Supabase + TailwindCSS
+- **Last Updated**: 2025-10-03
 
-### Technology Stack
-- **Frontend**: React 19+ with TypeScript
-- **Styling**: TailwindCSS for responsive design
-- **Backend**: Supabase (PostgreSQL + Auth + Real-time)
-- **Build Tool**: Vite for fast development and building
-- **Deployment**: Ready for Vercel, Netlify, or similar platforms
+## ⚙️ Setup Instructions
 
-### Environment Configuration
-```env
-SUPABASE_URL=https://frcrtkfyuejqgclrlpna.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
+### Prerequisites
+1. **Database Setup**: Follow instructions in `DATABASE_SETUP.md`
+2. **Admin User**: Run `node create-admin-final.js` after database setup
 
-## 📋 Next Development Steps
-
-### High Priority
-1. **Database Schema Creation** - Execute SQL setup in Supabase
-2. **Admin User Setup** - Create and configure admin account
-3. **Performance Testing** - Verify all CRUD operations
-4. **Production Deployment** - Deploy to production environment
-
-### Medium Priority
-1. **Email Notifications** - Setup for user approvals and submissions
-2. **Data Export** - Excel/PDF report generation
-3. **Advanced Filtering** - Enhanced search and filter options
-4. **Audit Logging** - Track all administrative actions
-
-### Future Enhancements
-1. **Mobile App** - React Native companion app
-2. **Advanced Analytics** - Performance trend analysis
-3. **Integration APIs** - Connect with external HR systems
-4. **Multi-language Support** - English interface option
-
-## 🔧 Development Commands
-
+### Local Development
 ```bash
 # Install dependencies
 npm install
@@ -184,35 +124,73 @@ npm install
 # Start development server
 npm run dev
 
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Create admin user (after database setup)
-node create-admin-simple.js
+# Or use PM2 for daemon mode
+pm2 start ecosystem.config.cjs
 ```
 
-## 📚 Documentation Files
-- `DATABASE_SETUP.md` - Complete database schema setup guide
-- `schema.sql` - Database schema for manual import
-- `types.ts` - TypeScript type definitions
-- `create-admin-simple.js` - Admin user creation script
+### Database Configuration
+The application is configured to connect to:
+- **URL**: https://frcrtkfyuejqgclrlpna.supabase.co
+- **API Key**: Pre-configured in `utils/supabaseClient.ts`
 
-## 🔍 Troubleshooting
+## 🔧 Technical Features
+
+### Security
+- Row Level Security (RLS) policies for data protection
+- Role-based access control
+- Secure authentication with Supabase Auth
+- Input validation and sanitization
+
+### Performance
+- Optimized database queries with proper indexing
+- Real-time updates via Supabase subscriptions
+- Efficient state management with React Context
+- Responsive design for all device sizes
+
+### User Experience
+- Persian/Farsi language support
+- Intuitive interface with clear navigation
+- Loading states and error handling
+- Form validation with helpful feedback
+
+## 📝 Features Not Yet Implemented
+
+### Potential Enhancements
+- [ ] Advanced reporting and analytics
+- [ ] Export functionality (PDF/Excel)
+- [ ] Email notifications for submissions
+- [ ] Mobile application
+- [ ] Audit trail and change logging
+- [ ] Bulk data import/export
+- [ ] Advanced user permissions (beyond admin/user)
+- [ ] Dashboard analytics and charts
+
+## 🔄 Recommended Next Steps
+
+1. **Complete Database Setup**: Follow `DATABASE_SETUP.md` to create all required tables
+2. **Create Admin User**: Run the admin creation script
+3. **Test Full Workflow**: Register a user, approve them, and test performance entry
+4. **Add Sample Data**: Create additional bases, personnel, and shifts for testing
+5. **User Training**: Provide training materials for end users
+6. **Production Deployment**: Consider deploying to a production environment
+7. **Backup Strategy**: Implement regular database backups
+8. **Monitoring**: Set up system monitoring and error tracking
+
+## 🐛 Troubleshooting
 
 ### Common Issues
-1. **Login Failed**: Ensure database tables exist, check user role/status
-2. **Database Errors**: Verify Supabase connection and RLS policies
-3. **Admin Access**: Confirm admin role is set in profiles table
+1. **Database Connection**: Ensure Supabase database schema is created
+2. **Authentication**: Verify admin user exists and has correct permissions
+3. **RLS Policies**: Check that Row Level Security policies are properly configured
+4. **User Approval**: New users need admin approval before accessing the system
 
 ### Support
-- Check Supabase logs for detailed error messages
-- Verify network connectivity to Supabase instance
-- Ensure all environment variables are properly configured
+- Check the `DATABASE_SETUP.md` file for detailed setup instructions
+- Review Supabase dashboard for authentication and database issues
+- Use browser developer tools to check for JavaScript errors
 
 ---
 
-**Last Updated**: 2024-10-03
-**Status**: ✅ Integration Complete - Ready for Database Setup
+**Last Updated**: October 3, 2025  
+**Version**: 1.0.0  
+**Maintainer**: Emergency Management System Team
