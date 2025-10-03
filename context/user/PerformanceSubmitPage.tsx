@@ -24,7 +24,7 @@ const PerformanceSubmitPage: React.FC = () => {
     
     // Modals and selections
     const [isCellModalOpen, setCellModalOpen] = useState(false);
-    const [currentCell, setCurrentCell] = useState<{ personnelId: string; day: number } | null>(null);
+    const [currentCell, setCurrentCell] = useState<{ personnel_id: string; day: number } | null>(null);
     const [isGuestModalOpen, setGuestModalOpen] = useState(false);
     const [guestPersonnelIds, setGuestPersonnelIds] = useState<string[]>([]);
     const [removedBasePersonnelIds, setRemovedBasePersonnelIds] = useState<string[]>([]);
@@ -142,7 +142,7 @@ const PerformanceSubmitPage: React.FC = () => {
 
     const openCellModal = (personnelId: string, day: number) => {
         if (isLocked) return;
-        setCurrentCell({ personnelId, day });
+        setCurrentCell({ personnel_id: personnelId, day });
         setCellModalOpen(true);
     };
 
@@ -150,7 +150,7 @@ const PerformanceSubmitPage: React.FC = () => {
         if (!currentCell || !user?.base_id) return;
         
         setPerformanceRecords(prev => {
-            const existingIndex = prev.findIndex(r => r.personnel_id === currentCell.personnelId && r.day === currentCell.day);
+            const existingIndex = prev.findIndex(r => r.personnel_id === currentCell.personnel_id && r.day === currentCell.day);
             // Delete record
             if (recordData === null) {
                 return existingIndex > -1 ? prev.filter((_, index) => index !== existingIndex) : prev;
@@ -160,7 +160,7 @@ const PerformanceSubmitPage: React.FC = () => {
                 id: crypto.randomUUID(),
                 ...currentCell,
                 ...recordData,
-                personnel_id: currentCell.personnelId,
+                personnel_id: currentCell.personnel_id,
                 submitting_base_id: user.base_id,
                 year_month: `${filters.year}-${filters.month}`,
             };
@@ -373,7 +373,7 @@ const PerformanceSubmitPage: React.FC = () => {
                 isOpen={isCellModalOpen}
                 onClose={() => setCellModalOpen(false)}
                 onSave={handleSaveCell}
-                cellData={currentCell ? getRecordForCell(currentCell.personnelId, currentCell.day) : undefined}
+                cellData={currentCell ? getRecordForCell(currentCell.personnel_id, currentCell.day) : undefined}
             />
             <AddGuestModal 
                 isOpen={isGuestModalOpen}
