@@ -104,7 +104,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const login = async (email: string, password: string) => {
-        const { data: userAuth, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        // Handle both email and username login
+        let loginEmail = email;
+        
+        // If the input doesn't contain @, treat it as username and convert to email
+        if (!email.includes('@')) {
+            // Use company.com format for all users
+            loginEmail = `${email.toLowerCase()}@company.com`;
+        }
+        
+        const { data: userAuth, error: authError } = await supabase.auth.signInWithPassword({ 
+            email: loginEmail, 
+            password 
+        });
+        
         if (authError || !userAuth.user) {
             return { success: false, error: 'نام کاربری یا رمز عبور اشتباه است.' };
         }
@@ -138,8 +151,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const signUp = async (username: string, password: string) => {
-        const email = `${username.toLowerCase()}@example.com`;
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const email = `${username.toLowerCase()}@company.com`;
+        const { data, error } = await supabase.auth.signUp({ 
+            email, 
+            password,
+            options: {
+                data: {
+                    username: username
+                }
+            }
+        });
         
         if (error) {
             return { success: false, error: 'خطا در ایجاد کاربر: ' + error.message };
