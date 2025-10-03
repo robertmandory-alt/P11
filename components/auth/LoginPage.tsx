@@ -41,7 +41,7 @@ const LoginPage: React.FC = () => {
             setUsername('');
             setPassword('');
             setConfirmPassword('');
-            setSuccessMessage("ثبت نام موفق بود! لطفاً ایمیل خود را برای تایید حساب کاربری چک کنید. پس از تایید، حساب شما باید توسط مدیر سیستم فعال شود.");
+            setSuccessMessage("ثبت نام موفق بود! حساب شما در انتظار تایید مدیر سیستم است.");
         }
         setLoading(false);
     };
@@ -84,7 +84,7 @@ const LoginPage: React.FC = () => {
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-sky-400 focus:border-sky-400 focus:z-10 sm:text-sm"
-                                placeholder="نام کاربری (فقط حروف و اعداد انگلیسی)"
+                                placeholder="نام کاربری"
                             />
                         </div>
                         <div>

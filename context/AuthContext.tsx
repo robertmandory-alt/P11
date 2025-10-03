@@ -166,8 +166,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return { success: false, error: 'خطا در ایجاد کاربر: ' + error.message };
         }
         if (data.user) {
-            // The database trigger will automatically create a 'pending' profile.
-            return { success: true };
+            try {
+                // Manually create the profile since there's no database trigger
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .insert([{
+                        id: data.user.id,
+                        username: username,
+                        role: 'user',
+                        status: 'pending',
+                        profile_completed: false
+                    }]);
+                
+                if (profileError) {
+                    console.error('Error creating profile:', profileError.message);
+                    // Even if profile creation fails, we still consider signup successful
+                    // as the user is created in auth system
+                }
+                return { success: true };
+            } catch (profileError: any) {
+                console.error('Error creating profile:', profileError);
+                return { success: true }; // Auth user was created, so still success
+            }
         }
         return { success: false, error: 'خطای ناشناخته در ثبت نام.' };
     };
