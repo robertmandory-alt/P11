@@ -13,11 +13,14 @@ export interface UserProfile {
 
 export interface Personnel {
     id: string;
-    name: string;
+    name: string; // Full name (kept for backward compatibility)
+    first_name: string; // نام
+    last_name: string; // نام خانوادگی
     national_id: string;
     employment_status: 'Official' | 'Contractual'; // رسمی | طرحی
     productivity_status: 'Productive' | 'Non-Productive'; // بهره‌ور | غیر بهره‌ور
     driver_status: 'Driver' | 'Non-Driver'; // راننده | غیر راننده
+    work_experience?: '0-4' | '4-8' | '8-12' | '12-16' | '16+'; // سابقه کاری (سال)
     base_id?: string; // ID of the base they are assigned to
 }
 

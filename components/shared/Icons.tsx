@@ -166,3 +166,40 @@ export const SortIcon: React.FC<{ className?: string }> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m-5 4h13M20 4v12m0 0l-3-3m3 3l3-3" />
     </Icon>
 );
+
+export const UndoIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <Icon className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+    </Icon>
+);
+
+export const RedoIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <Icon className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
+    </Icon>
+);
+
+export const SaveIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <Icon className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+    </Icon>
+);
+
+export const EyeIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <Icon className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </Icon>
+);
+
+export const EyeOffIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <Icon className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+    </Icon>
+);
+
+export const FilterIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <Icon className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+    </Icon>
+);

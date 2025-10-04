@@ -1,0 +1,765 @@
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { Personnel, PerformanceRecord, WorkShift, Base, PerformanceSubmission } from '../../types';
+import { SortIcon, UndoIcon, RedoIcon, SaveIcon, EditIcon, EyeIcon, EyeOffIcon } from '../shared/Icons';
+import Modal from '../shared/Modal';
+
+// Jalali month details
+const JALALI_MONTHS = [
+    { name: 'فروردین', value: 1, days: 31 }, { name: 'اردیبهشت', value: 2, days: 31 }, { name: 'خرداد', value: 3, days: 31 },
+    { name: 'تیر', value: 4, days: 31 }, { name: 'مرداد', value: 5, days: 31 }, { name: 'شهریور', value: 6, days: 31 },
+    { name: 'مهر', value: 7, days: 30 }, { name: 'آبان', value: 8, days: 30 }, { name: 'آذر', value: 9, days: 30 },
+    { name: 'دی', value: 10, days: 30 }, { name: 'بهمن', value: 11, days: 30 }, { name: 'اسفند', value: 12, days: 29 }
+];
+const WEEKDAYS = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
+const HOLIDAYS = [1, 12, 13]; // Example holidays
+
+type SortConfig = { key: 'name'; direction: 'ascending' | 'descending' };
+type DisplayMode = 'code' | 'title-code' | 'title-code-base';
+type SaveMode = 'draft' | 'temp' | 'final';
+
+interface HistoryState {
+    records: PerformanceRecord[];
+    timestamp: number;
+}
+
+interface ColumnVisibility {
+    performanceDuty: boolean;
+    monthlyTotal: boolean;
+    leaveTotal: boolean;
+    vacationsTotal: boolean;
+    overtime: boolean;
+    missionCount: boolean;
+    mealCount: boolean;
+}
+
+const PerformanceMonitoringPage: React.FC = () => {
+    const { personnel, shifts, bases, loadPerformanceDataForMonth } = useAuth();
+    
+    const [selectedPersonnel, setSelectedPersonnel] = useState<string[]>([]);
+    const [filters, setFilters] = useState({ year: '1403', month: '6', employment: 'all', productivity: 'all' });
+    const [gridData, setGridData] = useState<{ records: PerformanceRecord[], submissions: PerformanceSubmission[] } | null>(null);
+    const [workingRecords, setWorkingRecords] = useState<PerformanceRecord[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'name', direction: 'ascending' });
+    const [displayMode, setDisplayMode] = useState<DisplayMode>('code');
+    const [isEditMode, setIsEditMode] = useState(false);
+    
+    // Undo/Redo state
+    const [history, setHistory] = useState<HistoryState[]>([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    
+    // Modal state for shift editing
+    const [shiftModalOpen, setShiftModalOpen] = useState(false);
+    const [selectedCell, setSelectedCell] = useState<{ personnelId: string; day: number } | null>(null);
+    const [selectedShifts, setSelectedShifts] = useState<string[]>([]);
+    
+    // Batch assignment modal
+    const [batchModalOpen, setBatchModalOpen] = useState(false);
+    
+    // Column visibility
+    const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({
+        performanceDuty: true,
+        monthlyTotal: true,
+        leaveTotal: true,
+        vacationsTotal: true,
+        overtime: true,
+        missionCount: true,
+        mealCount: true
+    });
+    
+    const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
+        setGridData(null);
+    };
+
+    const handleApplyFilter = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const data = await loadPerformanceDataForMonth(filters.year, filters.month);
+            const submittedBaseIds = new Set(
+                data.submissions
+                    .filter(s => s.status === 'submitted')
+                    .map(s => s.base_id)
+            );
+            
+            const submittedRecords = data.records.filter(r => 
+                submittedBaseIds.has(r.submitting_base_id)
+            );
+        
+            setGridData({ records: submittedRecords, submissions: data.submissions });
+            setWorkingRecords(submittedRecords);
+            // Initialize history
+            setHistory([{ records: submittedRecords, timestamp: Date.now() }]);
+            setHistoryIndex(0);
+        } catch (error) {
+            console.error('Error loading performance data:', error);
+            alert('خطا در بارگذاری اطلاعات عملکرد');
+        }
+        setIsLoading(false);
+    }, [filters.year, filters.month, loadPerformanceDataForMonth]);
+
+    const selectedMonth = JALALI_MONTHS.find(m => m.value === parseInt(filters.month));
+    const daysInMonth = Array.from({ length: selectedMonth?.days || 0 }, (_, i) => i + 1);
+
+    const personnelInGrid = useMemo(() => {
+        if (!gridData) return [];
+        const personnelIdsWithData = [...new Set(workingRecords.map(r => r.personnel_id))];
+        return personnel.filter(p => 
+            personnelIdsWithData.includes(p.id) &&
+            (filters.employment === 'all' || p.employment_status === filters.employment) &&
+            (filters.productivity === 'all' || p.productivity_status === filters.productivity)
+        );
+    }, [personnel, gridData, workingRecords, filters.employment, filters.productivity]);
+
+    const sortedPersonnel = useMemo(() => {
+        let sortableItems = [...personnelInGrid];
+        if (sortConfig.key === 'name') {
+            sortableItems.sort((a, b) => {
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                if (nameA.localeCompare(nameB, 'fa') < 0) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (nameA.localeCompare(nameB, 'fa') > 0) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [personnelInGrid, sortConfig]);
+
+    const requestSort = (key: 'name') => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getRecordsForCell = (personnelId: string, day: number) => {
+        return workingRecords.filter(r => r.personnel_id === personnelId && r.day === day) || [];
+    };
+
+    const handleSelectPersonnel = (id: string) => {
+        setSelectedPersonnel(prev => prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]);
+    };
+
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSelectedPersonnel(e.target.checked ? sortedPersonnel.map(p => p.id) : []);
+    };
+
+    // Cell click handler to open shift edit modal
+    const handleCellClick = (personnelId: string, day: number) => {
+        if (!isEditMode) return;
+        setSelectedCell({ personnelId, day });
+        const existing = getRecordsForCell(personnelId, day);
+        setSelectedShifts(existing.map(r => r.shift_id));
+        setShiftModalOpen(true);
+    };
+
+    // Save shift changes for a cell
+    const handleSaveShift = () => {
+        if (!selectedCell) return;
+        
+        const newRecords = workingRecords.filter(
+            r => !(r.personnel_id === selectedCell.personnelId && r.day === selectedCell.day)
+        );
+        
+        // Add new shifts
+        selectedShifts.forEach(shiftId => {
+            newRecords.push({
+                id: `temp-${Date.now()}-${Math.random()}`,
+                personnel_id: selectedCell.personnelId,
+                day: selectedCell.day,
+                shift_id: shiftId,
+                base_id: '', // Will be set properly in production
+                submitting_base_id: '',
+                year_month: `${filters.year}-${filters.month}`
+            });
+        });
+        
+        addToHistory(newRecords);
+        setWorkingRecords(newRecords);
+        setShiftModalOpen(false);
+        setSelectedCell(null);
+    };
+
+    // Undo/Redo functionality
+    const addToHistory = (newRecords: PerformanceRecord[]) => {
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push({ records: newRecords, timestamp: Date.now() });
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+    };
+
+    const undo = () => {
+        if (historyIndex > 0) {
+            setHistoryIndex(historyIndex - 1);
+            setWorkingRecords(history[historyIndex - 1].records);
+        }
+    };
+
+    const redo = () => {
+        if (historyIndex < history.length - 1) {
+            setHistoryIndex(historyIndex + 1);
+            setWorkingRecords(history[historyIndex + 1].records);
+        }
+    };
+
+    // Save functions
+    const handleSave = (mode: SaveMode) => {
+        // In production, this would save to the database
+        console.log(`Saving in ${mode} mode`, workingRecords);
+        alert(`داده‌ها در حالت ${mode === 'draft' ? 'پیش‌نویس' : mode === 'temp' ? 'موقت' : 'نهایی'} ذخیره شدند`);
+    };
+
+    // Calculate summary columns
+    const calculateSummary = (personnelId: string) => {
+        const records = workingRecords.filter(r => r.personnel_id === personnelId);
+        
+        const monthlyTotal = records.reduce((sum, r) => {
+            const shift = shifts.find(s => s.id === r.shift_id);
+            return sum + (shift?.equivalent_hours || 0);
+        }, 0);
+        
+        const leaveTotal = records.reduce((sum, r) => {
+            const shift = shifts.find(s => s.id === r.shift_id);
+            return shift?.type === 'Leave' ? sum + (shift?.equivalent_hours || 0) : sum;
+        }, 0);
+        
+        const vacationsTotal = records.reduce((sum, r) => {
+            const shift = shifts.find(s => s.id === r.shift_id);
+            return shift?.holiday_hours ? sum + shift.holiday_hours : sum;
+        }, 0);
+        
+        // These would be calculated based on actual logic
+        const performanceDuty = monthlyTotal; // Placeholder
+        const overtime = 0; // Placeholder
+        const missionCount = 0; // Placeholder  
+        const mealCount = records.length; // Placeholder
+        
+        return {
+            performanceDuty,
+            monthlyTotal,
+            leaveTotal,
+            vacationsTotal,
+            overtime,
+            missionCount,
+            mealCount
+        };
+    };
+    
+    return (
+        <div className="space-y-6">
+            <header className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-800">نظارت بر عملکرد</h1>
+                    <p className="text-sm text-gray-500 mt-1">جدول جامع عملکرد پرسنل (بر اساس داده‌های نهایی شده پایگاه‌ها)</p>
+                </div>
+            </header>
+
+            {/* Filters */}
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                    <FilterSelect name="month" label="ماه" value={filters.month} onChange={handleFilterChange}>
+                        {JALALI_MONTHS.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                    </FilterSelect>
+                    <FilterSelect name="year" label="سال" value={filters.year} onChange={handleFilterChange}>
+                        <option value="1403">1403</option>
+                        <option value="1404">1404</option>
+                    </FilterSelect>
+                    <FilterSelect name="employment" label="وضعیت استخدامی" value={filters.employment} onChange={handleFilterChange}>
+                        <option value="all">همه</option>
+                        <option value="Official">رسمی</option>
+                        <option value="Contractual">طرحی</option>
+                    </FilterSelect>
+                    <FilterSelect name="productivity" label="وضعیت بهره‌وری" value={filters.productivity} onChange={handleFilterChange}>
+                        <option value="all">همه</option>
+                        <option value="Productive">بهره‌ور</option>
+                        <option value="Non-Productive">غیر بهره‌ور</option>
+                    </FilterSelect>
+                     <button onClick={handleApplyFilter} disabled={isLoading} className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors w-full disabled:bg-blue-300">
+                        {isLoading ? 'در حال بارگذاری...' : 'اعمال فیلتر'}
+                     </button>
+                </div>
+            </div>
+
+            {gridData ? (
+                <>
+                    {/* Action Buttons */}
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                        <div className="flex flex-wrap gap-3 items-center justify-between">
+                            <div className="flex flex-wrap gap-2">
+                                <button onClick={() => setBatchModalOpen(true)} disabled={selectedPersonnel.length === 0} className="bg-teal-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-teal-600 transition-colors flex items-center disabled:bg-gray-300">
+                                    <span>تخصیص دسته جمعی ({selectedPersonnel.length})</span>
+                                </button>
+                                <button onClick={() => setIsEditMode(!isEditMode)} className={`${isEditMode ? 'bg-orange-500' : 'bg-gray-500'} text-white font-semibold py-2 px-4 rounded-lg hover:opacity-90 transition-colors flex items-center gap-2`}>
+                                    <EditIcon className="w-5 h-5" />
+                                    <span>{isEditMode ? 'حالت ویرایش فعال' : 'فعال‌سازی ویرایش'}</span>
+                                </button>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-2">
+                                <button onClick={undo} disabled={historyIndex <= 0} className="bg-gray-500 text-white py-2 px-3 rounded-lg hover:bg-gray-600 disabled:bg-gray-300 flex items-center gap-1">
+                                    <UndoIcon className="w-5 h-5" />
+                                    <span>بازگشت</span>
+                                </button>
+                                <button onClick={redo} disabled={historyIndex >= history.length - 1} className="bg-gray-500 text-white py-2 px-3 rounded-lg hover:bg-gray-600 disabled:bg-gray-300 flex items-center gap-1">
+                                    <RedoIcon className="w-5 h-5" />
+                                    <span>پیش‌روی</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
+                            <button onClick={() => handleSave('draft')} className="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 flex items-center gap-2">
+                                <SaveIcon className="w-5 h-5" />
+                                <span>ذخیره</span>
+                            </button>
+                            <button onClick={() => handleSave('temp')} className="bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 flex items-center gap-2">
+                                <SaveIcon className="w-5 h-5" />
+                                <span>ذخیره موقت</span>
+                            </button>
+                            <button onClick={() => handleSave('final')} className="bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                                <SaveIcon className="w-5 h-5" />
+                                <span>ذخیره نهایی</span>
+                            </button>
+                            
+                            <FilterSelect name="displayMode" label="" value={displayMode} onChange={(e) => setDisplayMode(e.target.value as DisplayMode)}>
+                                <option value="code">فقط کد</option>
+                                <option value="title-code">عنوان + کد</option>
+                                <option value="title-code-base">عنوان + کد + پایگاه</option>
+                            </FilterSelect>
+                        </div>
+                    </div>
+
+                    {/* Column Visibility Controls */}
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3">نمایش/مخفی کردن ستون‌ها</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                            {Object.entries(columnVisibility).map(([key, visible]) => (
+                                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={visible}
+                                        onChange={() => setColumnVisibility(prev => ({ ...prev, [key]: !prev[key as keyof ColumnVisibility] }))}
+                                        className="form-checkbox h-4 w-4 text-blue-600"
+                                    />
+                                    <span className="text-xs text-gray-700">
+                                        {key === 'performanceDuty' && 'موظفی عملکرد'}
+                                        {key === 'monthlyTotal' && 'جمع عملکرد'}
+                                        {key === 'leaveTotal' && 'مرخصی'}
+                                        {key === 'vacationsTotal' && 'تعطیلات'}
+                                        {key === 'overtime' && 'اضافه کار'}
+                                        {key === 'missionCount' && 'تعداد مأموریت'}
+                                        {key === 'mealCount' && 'تعداد وعده غذا'}
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Performance Table */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+                        <table className="w-full text-xs text-center text-gray-600 border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50">
+                                    <th className="sticky right-0 bg-gray-50 p-2 border-l border-b w-48 min-w-[180px] z-10">
+                                        <label className="flex items-center justify-start px-2">
+                                            <input type="checkbox" onChange={handleSelectAll} className="form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                            <button onClick={() => requestSort('name')} className="flex items-center me-3 font-bold">
+                                                نام پرسنل <SortIcon className="w-4 h-4 ms-1" />
+                                            </button>
+                                        </label>
+                                    </th>
+                                    {daysInMonth.map(day => {
+                                        const dayOfWeek = WEEKDAYS[(day + 4) % 7];
+                                        const isHoliday = HOLIDAYS.includes(day);
+                                        return (
+                                            <th key={day} className={`p-2 border-b border-l ${isHoliday ? 'bg-red-50 text-red-700' : ''}`}>
+                                                <div>{dayOfWeek}</div>
+                                                <div>{day}</div>
+                                            </th>
+                                        );
+                                    })}
+                                    {columnVisibility.performanceDuty && <th className="p-2 border-b border-l min-w-[80px] bg-blue-50">موظفی عملکرد</th>}
+                                    {columnVisibility.monthlyTotal && <th className="p-2 border-b border-l min-w-[80px] bg-blue-50">جمع ماهانه</th>}
+                                    {columnVisibility.leaveTotal && <th className="p-2 border-b border-l min-w-[80px] bg-green-50">مرخصی</th>}
+                                    {columnVisibility.vacationsTotal && <th className="p-2 border-b border-l min-w-[80px] bg-yellow-50">تعطیلات</th>}
+                                    {columnVisibility.overtime && <th className="p-2 border-b border-l min-w-[80px] bg-purple-50">اضافه کار</th>}
+                                    {columnVisibility.missionCount && <th className="p-2 border-b border-l min-w-[80px] bg-orange-50">تعداد مأموریت</th>}
+                                    {columnVisibility.mealCount && <th className="p-2 border-b border-l min-w-[80px] bg-pink-50">تعداد وعده غذا</th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedPersonnel.map(p => {
+                                    const summary = calculateSummary(p.id);
+                                    
+                                    return (
+                                        <tr key={p.id} className="border-b hover:bg-gray-50">
+                                            <td className="sticky right-0 bg-white hover:bg-gray-50 p-2 border-l text-right z-10">
+                                                 <label className="flex items-center px-2">
+                                                    <input type="checkbox" checked={selectedPersonnel.includes(p.id)} onChange={() => handleSelectPersonnel(p.id)} className="form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                                    <span className="me-3 font-semibold text-gray-800">{p.name}</span>
+                                                </label>
+                                            </td>
+                                            {daysInMonth.map(day => {
+                                                const records = getRecordsForCell(p.id, day);
+                                                const isHoliday = HOLIDAYS.includes(day);
+                                                return (
+                                                    <td 
+                                                        key={day} 
+                                                        onClick={() => handleCellClick(p.id, day)}
+                                                        className={`p-1 border-l ${isEditMode ? 'cursor-pointer hover:bg-blue-100' : ''} ${isHoliday ? 'bg-red-50' : ''} ${records.length > 1 ? 'space-y-1' : ''}`}
+                                                    >
+                                                        {records.length > 0 ? records.map(record => {
+                                                            const shift = shifts.find(s => s.id === record.shift_id);
+                                                            const base = bases.find(b => b.id === record.submitting_base_id);
+                                                            return (
+                                                                <div key={`${record.id}`} className="text-[10px] leading-tight flex flex-col items-center justify-center h-full bg-blue-50 rounded-sm p-0.5">
+                                                                    {displayMode === 'code' && <span className="font-bold">{shift?.code}</span>}
+                                                                    {displayMode === 'title-code' && (
+                                                                        <>
+                                                                            <span className="font-semibold">{shift?.title}</span>
+                                                                            <span className="text-gray-600">{shift?.code}</span>
+                                                                        </>
+                                                                    )}
+                                                                    {displayMode === 'title-code-base' && (
+                                                                        <>
+                                                                            <span className="font-semibold">{shift?.title}</span>
+                                                                            <span className="text-gray-600">{shift?.code}</span>
+                                                                            <span className="text-gray-500 text-[9px]">{base?.name}</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        }) : <div className="h-full w-full"></div>}
+                                                    </td>
+                                                );
+                                            })}
+                                            {columnVisibility.performanceDuty && <td className="p-2 border-l font-bold text-blue-700 bg-blue-50">{summary.performanceDuty}</td>}
+                                            {columnVisibility.monthlyTotal && <td className="p-2 border-l font-bold text-blue-700 bg-blue-50">{summary.monthlyTotal}</td>}
+                                            {columnVisibility.leaveTotal && <td className="p-2 border-l font-bold text-green-700 bg-green-50">{summary.leaveTotal}</td>}
+                                            {columnVisibility.vacationsTotal && <td className="p-2 border-l font-bold text-yellow-700 bg-yellow-50">{summary.vacationsTotal}</td>}
+                                            {columnVisibility.overtime && <td className="p-2 border-l font-bold text-purple-700 bg-purple-50">{summary.overtime}</td>}
+                                            {columnVisibility.missionCount && <td className="p-2 border-l font-bold text-orange-700 bg-orange-50">{summary.missionCount}</td>}
+                                            {columnVisibility.mealCount && <td className="p-2 border-l font-bold text-pink-700 bg-pink-50">{summary.mealCount}</td>}
+                                        </tr>
+                                    );
+                                })}
+                                {sortedPersonnel.length === 0 && (
+                                    <tr>
+                                        <td colSpan={daysInMonth.length + 8} className="text-center p-4">
+                                            داده‌ای برای نمایش با فیلترهای انتخاب شده وجود ندارد.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            ) : (
+                 <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center">
+                    <p className="text-gray-500">لطفاً برای نمایش جدول عملکرد، ماه و سال مورد نظر را انتخاب و سپس روی دکمه "اعمال فیلتر" کلیک کنید.</p>
+                </div>
+            )}
+
+            {/* Shift Edit Modal */}
+            <ShiftEditModal
+                isOpen={shiftModalOpen}
+                onClose={() => setShiftModalOpen(false)}
+                shifts={shifts}
+                selectedShifts={selectedShifts}
+                onSelectionChange={setSelectedShifts}
+                onSave={handleSaveShift}
+            />
+
+            {/* Batch Assignment Modal */}
+            <BatchAssignmentModal
+                isOpen={batchModalOpen}
+                onClose={() => setBatchModalOpen(false)}
+                personnel={personnel}
+                shifts={shifts}
+                bases={bases}
+                selectedPersonnelIds={selectedPersonnel}
+                onAssign={(personnelIds, shiftId, day) => {
+                    // Implementation for batch assignment
+                    console.log('Batch assign:', personnelIds, shiftId, day);
+                    setBatchModalOpen(false);
+                }}
+            />
+        </div>
+    );
+};
+
+const FilterSelect: React.FC<{name: string, label: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, children: React.ReactNode}> = ({ name, label, value, onChange, children }) => (
+    <div>
+        {label && <label className="block mb-1 text-sm font-medium text-gray-700">{label}</label>}
+        <select name={name} value={value} onChange={onChange} className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+            {children}
+        </select>
+    </div>
+);
+
+// Shift Edit Modal Component
+interface ShiftEditModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    shifts: WorkShift[];
+    selectedShifts: string[];
+    onSelectionChange: (shifts: string[]) => void;
+    onSave: () => void;
+}
+
+const ShiftEditModal: React.FC<ShiftEditModalProps> = ({ isOpen, onClose, shifts, selectedShifts, onSelectionChange, onSave }) => {
+    const shiftsByType = useMemo(() => {
+        return {
+            Work: shifts.filter(s => s.type === 'Work'),
+            Leave: shifts.filter(s => s.type === 'Leave'),
+            Miscellaneous: shifts.filter(s => s.type === 'Miscellaneous')
+        };
+    }, [shifts]);
+
+    const toggleShift = (shiftId: string) => {
+        if (selectedShifts.includes(shiftId)) {
+            onSelectionChange(selectedShifts.filter(id => id !== shiftId));
+        } else {
+            onSelectionChange([...selectedShifts, shiftId]);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="انتخاب شیفت">
+            <div className="space-y-4">
+                {Object.entries(shiftsByType).map(([type, typeShifts]) => (
+                    <div key={type} className="border rounded-lg p-3">
+                        <h4 className="font-semibold text-gray-700 mb-2">
+                            {type === 'Work' ? 'شیفت کاری' : type === 'Leave' ? 'مرخصی' : 'متفرقه'}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            {typeShifts.map(shift => (
+                                <label key={shift.id} className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedShifts.includes(shift.id)}
+                                        onChange={() => toggleShift(shift.id)}
+                                        className="form-checkbox h-4 w-4 text-blue-600"
+                                    />
+                                    <span className="text-sm">
+                                        {shift.title} ({shift.code})
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+                
+                <div className="flex justify-end pt-4 space-x-2 space-x-reverse">
+                    <button type="button" onClick={onClose} className="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-blue-300 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900">
+                        انصراف
+                    </button>
+                    <button type="button" onClick={onSave} className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                        تأیید
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
+// Batch Assignment Modal Component
+interface BatchAssignmentModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    personnel: Personnel[];
+    shifts: WorkShift[];
+    bases: Base[];
+    selectedPersonnelIds: string[];
+    onAssign: (personnelIds: string[], shiftId: string, day?: number) => void;
+}
+
+const BatchAssignmentModal: React.FC<BatchAssignmentModalProps> = ({ 
+    isOpen, onClose, personnel, shifts, bases, selectedPersonnelIds, onAssign 
+}) => {
+    const [selectionMode, setSelectionMode] = useState<'manual' | 'filter'>('manual');
+    const [manualSelection, setManualSelection] = useState<string[]>(selectedPersonnelIds);
+    const [filterConfig, setFilterConfig] = useState({
+        productivity: 'all',
+        employment: 'all',
+        base: 'all',
+        shiftType: 'all',
+        workExperience: 'all'
+    });
+    const [selectedShift, setSelectedShift] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredPersonnel = useMemo(() => {
+        if (selectionMode === 'manual') {
+            return personnel.filter(p => 
+                p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (p.first_name && p.first_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (p.last_name && p.last_name.toLowerCase().includes(searchTerm.toLowerCase()))
+            );
+        } else {
+            return personnel.filter(p => {
+                if (filterConfig.productivity !== 'all' && p.productivity_status !== filterConfig.productivity) return false;
+                if (filterConfig.employment !== 'all' && p.employment_status !== filterConfig.employment) return false;
+                if (filterConfig.workExperience !== 'all' && p.work_experience !== filterConfig.workExperience) return false;
+                if (filterConfig.base !== 'all' && p.base_id !== filterConfig.base) return false;
+                return true;
+            });
+        }
+    }, [selectionMode, personnel, filterConfig, searchTerm]);
+
+    const finalSelection = selectionMode === 'manual' ? manualSelection : filteredPersonnel.map(p => p.id);
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="تخصیص دسته جمعی شیفت">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                {/* Selection Mode */}
+                <div className="flex gap-4 border-b pb-3">
+                    <button
+                        onClick={() => setSelectionMode('manual')}
+                        className={`px-4 py-2 rounded-lg font-semibold ${selectionMode === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                    >
+                        انتخاب دستی
+                    </button>
+                    <button
+                        onClick={() => setSelectionMode('filter')}
+                        className={`px-4 py-2 rounded-lg font-semibold ${selectionMode === 'filter' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                    >
+                        انتخاب فیلتری
+                    </button>
+                </div>
+
+                {/* Manual Selection */}
+                {selectionMode === 'manual' && (
+                    <div>
+                        <input
+                            type="text"
+                            placeholder="جستجوی پرسنل..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full p-2 border rounded-lg mb-3"
+                        />
+                        <div className="max-h-60 overflow-y-auto border rounded-lg p-2 space-y-1">
+                            {filteredPersonnel.map(p => (
+                                <label key={p.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={manualSelection.includes(p.id)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setManualSelection([...manualSelection, p.id]);
+                                            } else {
+                                                setManualSelection(manualSelection.filter(id => id !== p.id));
+                                            }
+                                        }}
+                                        className="form-checkbox h-4 w-4 text-blue-600"
+                                    />
+                                    <span className="text-sm">{p.name}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Filter Selection */}
+                {selectionMode === 'filter' && (
+                    <div className="grid grid-cols-2 gap-3">
+                        <FilterSelect 
+                            name="productivity" 
+                            label="بهره‌وری" 
+                            value={filterConfig.productivity} 
+                            onChange={(e) => setFilterConfig({...filterConfig, productivity: e.target.value})}
+                        >
+                            <option value="all">همه</option>
+                            <option value="Productive">بهره‌ور</option>
+                            <option value="Non-Productive">غیر بهره‌ور</option>
+                        </FilterSelect>
+
+                        <FilterSelect 
+                            name="employment" 
+                            label="وضعیت استخدامی" 
+                            value={filterConfig.employment} 
+                            onChange={(e) => setFilterConfig({...filterConfig, employment: e.target.value})}
+                        >
+                            <option value="all">همه</option>
+                            <option value="Official">رسمی</option>
+                            <option value="Contractual">طرحی</option>
+                        </FilterSelect>
+
+                        <FilterSelect 
+                            name="workExperience" 
+                            label="سابقه کاری" 
+                            value={filterConfig.workExperience} 
+                            onChange={(e) => setFilterConfig({...filterConfig, workExperience: e.target.value})}
+                        >
+                            <option value="all">همه</option>
+                            <option value="0-4">۰ تا ۴ سال</option>
+                            <option value="4-8">۴ تا ۸ سال</option>
+                            <option value="8-12">۸ تا ۱۲ سال</option>
+                            <option value="12-16">۱۲ تا ۱۶ سال</option>
+                            <option value="16+">۱۶ سال به بالا</option>
+                        </FilterSelect>
+
+                        <FilterSelect 
+                            name="base" 
+                            label="پایگاه" 
+                            value={filterConfig.base} 
+                            onChange={(e) => setFilterConfig({...filterConfig, base: e.target.value})}
+                        >
+                            <option value="all">همه</option>
+                            {bases.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </FilterSelect>
+
+                        <div className="col-span-2 p-3 bg-blue-50 rounded-lg">
+                            <p className="text-sm text-gray-700">تعداد پرسنل منتخب: <span className="font-bold">{finalSelection.length}</span></p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Shift Selection */}
+                <div className="border-t pt-3">
+                    <label className="block mb-2 text-sm font-medium text-gray-900">انتخاب شیفت</label>
+                    <select 
+                        value={selectedShift} 
+                        onChange={(e) => setSelectedShift(e.target.value)}
+                        className="w-full p-2 border rounded-lg"
+                    >
+                        <option value="">انتخاب کنید...</option>
+                        {shifts.map(s => (
+                            <option key={s.id} value={s.id}>{s.title} ({s.code}) - {s.type === 'Work' ? 'کاری' : s.type === 'Leave' ? 'مرخصی' : 'متفرقه'}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end pt-4 space-x-2 space-x-reverse border-t">
+                    <button type="button" onClick={onClose} className="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-blue-300 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900">
+                        انصراف
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={() => {
+                            if (selectedShift && finalSelection.length > 0) {
+                                onAssign(finalSelection, selectedShift);
+                                alert(`شیفت برای ${finalSelection.length} نفر تخصیص داده شد`);
+                            } else {
+                                alert('لطفاً پرسنل و شیفت را انتخاب کنید');
+                            }
+                        }}
+                        disabled={!selectedShift || finalSelection.length === 0}
+                        className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 disabled:bg-gray-300"
+                    >
+                        تخصیص جمعی
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
+export default PerformanceMonitoringPage;
