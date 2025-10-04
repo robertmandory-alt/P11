@@ -1,36 +1,39 @@
 # Database Migration Instructions
 
-## Important: SQL Schema Changes Required
+## ⚠️ IMPORTANT: Database Schema Update Required
 
-Before the application can work with the new features, you MUST execute the following SQL in your Supabase SQL Editor.
+Before running the updated application, you MUST update the Supabase database schema to add the new fields to the `personnel` table.
 
-### How to Execute
+## Step-by-Step Instructions
 
-1. Go to your Supabase project dashboard: https://supabase.com/dashboard/project/frcrtkfyuejqgclrlpna/sql
+### 1. Access Supabase SQL Editor
+
+1. Go to your Supabase project dashboard: https://supabase.com/dashboard/project/frcrtkfyuejqgclrlpna
 2. Click on "SQL Editor" in the left sidebar
-3. Click "+ New query"
-4. Copy and paste the SQL below
-5. Click "Run" to execute the migration
+3. Click "New query" to create a new SQL query
 
-### Migration SQL
+### 2. Execute the Migration SQL
+
+Copy and paste the following SQL into the SQL Editor and click "Run":
 
 ```sql
--- ========================================
--- MIGRATION: Add Personnel Name and Work Experience Fields
+-- ============================================================================
+-- Personnel Table Schema Update
 -- Date: 2025-10-04
--- Description: Split name field into first_name/last_name and add work_experience
--- ========================================
+-- Description: Add first_name, last_name, and work_experience fields
+-- ============================================================================
 
--- Step 1: Add new columns to personnel table
+-- Step 1: Add new columns to the personnel table
 ALTER TABLE public.personnel 
 ADD COLUMN IF NOT EXISTS first_name TEXT,
 ADD COLUMN IF NOT EXISTS last_name TEXT,
 ADD COLUMN IF NOT EXISTS work_experience TEXT;
 
--- Step 2: Add check constraint for work_experience
+-- Step 2: Add check constraint for work_experience field
 DO $$ BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'personnel_work_experience_check'
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'personnel_work_experience_check'
     ) THEN
         ALTER TABLE public.personnel 
         ADD CONSTRAINT personnel_work_experience_check 
@@ -38,7 +41,8 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- Step 3: Migrate existing data from name field to first_name and last_name
+-- Step 3: Migrate existing data from 'name' field to first_name and last_name
+-- This splits full names into first and last names
 UPDATE public.personnel
 SET 
     first_name = CASE 
@@ -56,78 +60,98 @@ ALTER TABLE public.personnel
 ALTER COLUMN first_name SET NOT NULL;
 
 -- Step 5: Verify the changes
-SELECT id, name, first_name, last_name, work_experience FROM public.personnel;
-```
-
-### Expected Results
-
-After running this migration:
-
-1. **New Columns Added:**
-   - `first_name` (TEXT, NOT NULL) - نام
-   - `last_name` (TEXT) - نام خانوادگی
-   - `work_experience` (TEXT with CHECK constraint) - سابقه کاری
-
-2. **Existing Data Migrated:**
-   - All existing names split into first_name and last_name
-   - Original `name` field preserved for backward compatibility
-
-3. **Work Experience Options:**
-   - `0-4` - ۰ تا ۴ سال
-   - `4-8` - ۴ تا ۸ سال
-   - `8-12` - ۸ تا ۱۲ سال
-   - `12-16` - ۱۲ تا ۱۶ سال
-   - `16+` - ۱۶ سال به بالا
-
-### Verification
-
-After running the migration, verify it worked correctly:
-
-```sql
--- Check column structure
-SELECT column_name, data_type, is_nullable 
-FROM information_schema.columns 
-WHERE table_name = 'personnel' 
-AND column_name IN ('first_name', 'last_name', 'work_experience');
-
--- Check data migration
 SELECT id, name, first_name, last_name, work_experience 
 FROM public.personnel 
 LIMIT 10;
 ```
 
-### Troubleshooting
+### 3. Verify the Migration
 
-If you encounter any errors:
+After running the SQL above:
 
-1. **"column already exists"** - This is fine, the migration is idempotent
-2. **"violates not-null constraint"** - Check that all personnel have at least a first_name
-3. **"constraint already exists"** - This is fine, the constraint check prevents duplicates
+1. Check the output in the "Results" section at the bottom
+2. You should see the personnel records with the new `first_name` and `last_name` columns populated
+3. The `work_experience` column will be NULL for existing records (can be updated in the application)
 
-### Rollback (If Needed)
+### 4. Test the Migration
 
-If you need to rollback this migration:
+Run the verification script to ensure everything worked correctly:
 
-```sql
--- WARNING: This will delete the new columns and their data
-ALTER TABLE public.personnel 
-DROP COLUMN IF EXISTS first_name CASCADE,
-DROP COLUMN IF EXISTS last_name CASCADE,
-DROP COLUMN IF EXISTS work_experience CASCADE;
+```bash
+cd /home/user/webapp
+node update-personnel-schema.js
 ```
+
+You should see output confirming that the new columns exist:
+
+```
+✅ New columns found! Schema update appears to be complete.
+Sample with new fields: { id: '...', name: '...', first_name: '...', last_name: '...', work_experience: null }
+```
+
+## What Changed?
+
+### Added Fields
+
+1. **first_name** (TEXT, NOT NULL)
+   - Stores the first name of personnel
+   - Migrated from the first part of the existing `name` field
+
+2. **last_name** (TEXT)
+   - Stores the last name of personnel
+   - Migrated from the remaining part of the existing `name` field
+
+3. **work_experience** (TEXT, OPTIONAL)
+   - Stores work experience category
+   - Valid values: '0-4', '4-8', '8-12', '12-16', '16+'
+   - Represents years of experience
+
+### Backward Compatibility
+
+- The `name` field is kept for backward compatibility
+- New personnel records will have both `name` (full name) and `first_name`/`last_name`
+- Existing code that uses `name` will continue to work
+- New code should use `first_name` and `last_name` separately
+
+## Troubleshooting
+
+### If migration fails:
+
+1. **Error: column already exists**
+   - This is fine! It means the migration was already run
+   - The script uses `ADD COLUMN IF NOT EXISTS` to prevent errors
+
+2. **Error: constraint already exists**
+   - This is also fine! The script handles this automatically
+
+3. **Data migration issues**
+   - Check if the `name` field has the expected format
+   - For names without spaces, everything goes to `first_name`
+   - For multi-part names, first word goes to `first_name`, rest to `last_name`
+
+4. **Need to rollback**
+   ```sql
+   -- Remove the new columns (WARNING: This will delete data!)
+   ALTER TABLE public.personnel DROP COLUMN IF EXISTS first_name;
+   ALTER TABLE public.personnel DROP COLUMN IF EXISTS last_name;
+   ALTER TABLE public.personnel DROP COLUMN IF EXISTS work_experience;
+   ```
 
 ## Next Steps
 
-After successfully running this migration:
+After successful migration:
 
-1. ✅ Database schema is updated
-2. ✅ Application code is ready
-3. ✅ Start the development server
-4. ✅ Test the Personnel Management page
-5. ✅ Test the Performance Monitoring features
+1. ✅ Start the development server
+2. ✅ Test personnel management features
+3. ✅ Verify that existing personnel display correctly
+4. ✅ Test adding new personnel with separate first/last names
+5. ✅ Test work experience dropdown selection
 
-## Notes
+## Support
 
-- The original `name` column is kept for backward compatibility
-- New records should populate both `name` and `first_name`/`last_name`
-- The application automatically combines first_name and last_name for display
+If you encounter any issues with the migration:
+
+1. Check the Supabase logs for error details
+2. Review the SQL output in the SQL Editor
+3. Verify that your database user has ALTER TABLE permissions
+4. Contact support if problems persist
