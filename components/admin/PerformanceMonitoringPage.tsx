@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Personnel, PerformanceRecord, WorkShift, Base, PerformanceSubmission } from '../../types';
 import { PlusIcon, SortIcon, SaveIcon, UndoIcon, RedoIcon, EyeIcon, EyeOffIcon, FilterIcon } from '../shared/Icons';
 import Modal from '../shared/Modal';
+import EnhancedGroupAssignmentModal from './EnhancedGroupAssignmentModal';
 
 // Jalali month details
 const JALALI_MONTHS = [
@@ -382,6 +383,12 @@ const PerformanceMonitoringPage: React.FC = () => {
                                         >
                                             ↪️ جلو
                                         </button>
+                                        <button 
+                                            onClick={() => setIsGroupAssignModalOpen(true)}
+                                            className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                                        >
+                                            🎯 تخصیص ویژه و سریع شیفت
+                                        </button>
                                     </>
                                 )}
                             </div>
@@ -559,19 +566,49 @@ const PerformanceMonitoringPage: React.FC = () => {
                 />
             )}
             
-            {/* Group Assignment Modal */}
+            {/* Enhanced Group Assignment Modal */}
             {isGroupAssignModalOpen && (
-                <GroupAssignmentModal
+                <EnhancedGroupAssignmentModal
                     isOpen={isGroupAssignModalOpen}
                     onClose={() => setIsGroupAssignModalOpen(false)}
                     personnel={personnel}
                     shifts={shifts}
                     bases={bases}
                     selectedPersonnel={selectedPersonnel}
-                    onAssign={(personnelIds, shiftId, baseId, days) => {
-                        // Implement group assignment logic
-                        console.log('Group assign:', personnelIds, shiftId, baseId, days);
+                    performanceRecords={gridData?.records || []}
+                    year={filters.year}
+                    month={filters.month}
+                    onAssign={(personnelIds, assignments) => {
+                        if (!gridData) return;
+                        
+                        const newRecords = [...gridData.records];
+                        
+                        // Apply each assignment to each selected personnel
+                        assignments.forEach(assignment => {
+                            personnelIds.forEach(personnelId => {
+                                assignment.days.forEach(day => {
+                                    // Create the specified number of records for this assignment
+                                    for (let count = 0; count < assignment.count; count++) {
+                                        const newRecord: PerformanceRecord = {
+                                            id: crypto.randomUUID(),
+                                            personnel_id: personnelId,
+                                            day,
+                                            shift_id: assignment.shiftId,
+                                            base_id: assignment.baseId,
+                                            submitting_base_id: assignment.baseId,
+                                            year_month: `${filters.year}-${filters.month}`
+                                        };
+                                        newRecords.push(newRecord);
+                                    }
+                                });
+                            });
+                        });
+                        
+                        setGridData({ ...gridData, records: newRecords });
+                        addToHistory(newRecords);
                         setIsGroupAssignModalOpen(false);
+                        
+                        alert(`تخصیص گروهی با موفقیت انجام شد. ${personnelIds.length} پرسنل، ${assignments.length} نوع شیفت`);
                     }}
                 />
             )}
@@ -673,254 +710,6 @@ const ShiftEditModal: React.FC<ShiftEditModalProps> = ({ isOpen, onClose, shifts
     );
 };
 
-// Group Assignment Modal Component
-interface GroupAssignmentModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    personnel: Personnel[];
-    shifts: WorkShift[];
-    bases: Base[];
-    selectedPersonnel: string[];
-    onAssign: (personnelIds: string[], shiftId: string, baseId: string, days: number[]) => void;
-}
-
-const GroupAssignmentModal: React.FC<GroupAssignmentModalProps> = ({ isOpen, onClose, personnel, shifts, bases, selectedPersonnel, onAssign }) => {
-    const [selectionMode, setSelectionMode] = useState<'manual' | 'filter'>('manual');
-    const [manualSelection, setManualSelection] = useState<string[]>(selectedPersonnel);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedShift, setSelectedShift] = useState('');
-    const [selectedBase, setSelectedBase] = useState('');
-    const [selectedDays, setSelectedDays] = useState<number[]>([]);
-    
-    // Filter options
-    const [productivityFilter, setProductivityFilter] = useState<string>('all');
-    const [employmentFilter, setEmploymentFilter] = useState<string>('all');
-    const [experienceFilter, setExperienceFilter] = useState<string>('all');
-    
-    const filteredPersonnel = useMemo(() => {
-        return personnel.filter(p => {
-            const matchesSearch = searchTerm === '' || 
-                `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.name?.toLowerCase().includes(searchTerm.toLowerCase());
-            
-            if (selectionMode === 'manual') {
-                return matchesSearch;
-            } else {
-                const matchesProductivity = productivityFilter === 'all' || p.productivity_status === productivityFilter;
-                const matchesEmployment = employmentFilter === 'all' || p.employment_status === employmentFilter;
-                const matchesExperience = experienceFilter === 'all' || p.work_experience === experienceFilter;
-                
-                return matchesSearch && matchesProductivity && matchesEmployment && matchesExperience;
-            }
-        });
-    }, [personnel, searchTerm, selectionMode, productivityFilter, employmentFilter, experienceFilter]);
-    
-    const handleTogglePersonnel = (id: string) => {
-        setManualSelection(prev => 
-            prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]
-        );
-    };
-    
-    const handleSelectAllFiltered = () => {
-        setManualSelection(filteredPersonnel.map(p => p.id));
-    };
-    
-    const handleSubmit = () => {
-        if (selectedShift && selectedBase && selectedDays.length > 0) {
-            const finalSelection = selectionMode === 'manual' ? manualSelection : filteredPersonnel.map(p => p.id);
-            onAssign(finalSelection, selectedShift, selectedBase, selectedDays);
-        }
-    };
-    
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="تخصیص دسته جمعی شیفت">
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-                {/* Selection Mode */}
-                <div className="flex gap-2 border-b pb-3">
-                    <button
-                        onClick={() => setSelectionMode('manual')}
-                        className={`px-4 py-2 rounded-lg ${selectionMode === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-                    >
-                        انتخاب دستی
-                    </button>
-                    <button
-                        onClick={() => setSelectionMode('filter')}
-                        className={`px-4 py-2 rounded-lg ${selectionMode === 'filter' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-                    >
-                        انتخاب فیلتری
-                    </button>
-                </div>
-                
-                {/* Search */}
-                <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-900">جستجوی پرسنل</label>
-                    <input
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="نام پرسنل را وارد کنید..."
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                    />
-                </div>
-                
-                {/* Filter Options (only in filter mode) */}
-                {selectionMode === 'filter' && (
-                    <div className="grid grid-cols-3 gap-3 bg-blue-50 p-3 rounded-lg">
-                        <div>
-                            <label className="block mb-1 text-xs font-medium text-gray-700">بهره‌وری</label>
-                            <select 
-                                value={productivityFilter} 
-                                onChange={(e) => setProductivityFilter(e.target.value)}
-                                className="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2"
-                            >
-                                <option value="all">همه</option>
-                                <option value="Productive">بهره‌ور</option>
-                                <option value="Non-Productive">غیر بهره‌ور</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-xs font-medium text-gray-700">استخدام</label>
-                            <select 
-                                value={employmentFilter} 
-                                onChange={(e) => setEmploymentFilter(e.target.value)}
-                                className="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2"
-                            >
-                                <option value="all">همه</option>
-                                <option value="Official">رسمی</option>
-                                <option value="Contractual">طرحی</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-xs font-medium text-gray-700">سابقه کاری</label>
-                            <select 
-                                value={experienceFilter} 
-                                onChange={(e) => setExperienceFilter(e.target.value)}
-                                className="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2"
-                            >
-                                <option value="all">همه</option>
-                                <option value="0-4">۰-۴ سال</option>
-                                <option value="4-8">۴-۸ سال</option>
-                                <option value="8-12">۸-۱۲ سال</option>
-                                <option value="12-16">۱۲-۱۶ سال</option>
-                                <option value="16+">۱۶+ سال</option>
-                            </select>
-                        </div>
-                    </div>
-                )}
-                
-                {/* Personnel List */}
-                <div className="border rounded-lg p-3 max-h-48 overflow-y-auto">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium">
-                            پرسنل ({selectionMode === 'manual' ? manualSelection.length : filteredPersonnel.length} نفر)
-                        </span>
-                        {selectionMode === 'manual' && (
-                            <button
-                                onClick={handleSelectAllFiltered}
-                                className="text-xs text-blue-600 hover:text-blue-800"
-                            >
-                                انتخاب همه
-                            </button>
-                        )}
-                    </div>
-                    {filteredPersonnel.map(p => (
-                        <div key={p.id} className="flex items-center gap-2 py-1">
-                            {selectionMode === 'manual' && (
-                                <input
-                                    type="checkbox"
-                                    checked={manualSelection.includes(p.id)}
-                                    onChange={() => handleTogglePersonnel(p.id)}
-                                    className="form-checkbox h-4 w-4"
-                                />
-                            )}
-                            <span className="text-sm">{`${p.first_name} ${p.last_name}` || p.name}</span>
-                            <span className="text-xs text-gray-500">
-                                ({p.employment_status === 'Official' ? 'رسمی' : 'طرحی'})
-                            </span>
-                        </div>
-                    ))}
-                </div>
-                
-                {/* Shift Selection */}
-                <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-900">انتخاب شیفت</label>
-                    <select 
-                        value={selectedShift} 
-                        onChange={(e) => setSelectedShift(e.target.value)}
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                        required
-                    >
-                        <option value="">انتخاب کنید</option>
-                        {shifts.map(shift => (
-                            <option key={shift.id} value={shift.id}>
-                                {shift.title} ({shift.code})
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                
-                {/* Base Selection */}
-                <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-900">پایگاه</label>
-                    <select 
-                        value={selectedBase} 
-                        onChange={(e) => setSelectedBase(e.target.value)}
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                        required
-                    >
-                        <option value="">انتخاب کنید</option>
-                        {bases.map(base => (
-                            <option key={base.id} value={base.id}>
-                                {base.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                
-                {/* Day Selection - Simplified */}
-                <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-900">انتخاب روزها</label>
-                    <input
-                        type="text"
-                        placeholder="روزها را با ویرگول جدا کنید (مثال: 1,2,3,10-15)"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                        onChange={(e) => {
-                            // Parse input like "1,2,3,10-15"
-                            const days: number[] = [];
-                            e.target.value.split(',').forEach(part => {
-                                if (part.includes('-')) {
-                                    const [start, end] = part.split('-').map(n => parseInt(n.trim()));
-                                    for (let i = start; i <= end; i++) {
-                                        if (i >= 1 && i <= 31) days.push(i);
-                                    }
-                                } else {
-                                    const day = parseInt(part.trim());
-                                    if (day >= 1 && day <= 31) days.push(day);
-                                }
-                            });
-                            setSelectedDays([...new Set(days)].sort((a, b) => a - b));
-                        }}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                        روزهای انتخاب شده: {selectedDays.length > 0 ? selectedDays.join(', ') : 'هیچ'}
-                    </p>
-                </div>
-                
-                <div className="flex justify-end pt-4 space-x-2 space-x-reverse border-t">
-                    <button type="button" onClick={onClose} className="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-blue-300 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5">
-                        انصراف
-                    </button>
-                    <button 
-                        onClick={handleSubmit} 
-                        disabled={!selectedShift || !selectedBase || selectedDays.length === 0}
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 disabled:bg-gray-300"
-                    >
-                        تخصیص گروهی
-                    </button>
-                </div>
-            </div>
-        </Modal>
-    );
-};
+// Old GroupAssignmentModal removed - using EnhancedGroupAssignmentModal instead
 
 export default PerformanceMonitoringPage;
