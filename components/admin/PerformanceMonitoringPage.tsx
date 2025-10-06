@@ -4,6 +4,7 @@ import { Personnel, PerformanceRecord, WorkShift, Base, PerformanceSubmission } 
 import { PlusIcon, SortIcon, SaveIcon, UndoIcon, RedoIcon, EyeIcon, EyeOffIcon, FilterIcon } from '../shared/Icons';
 import Modal from '../shared/Modal';
 import EnhancedGroupAssignmentModal from './EnhancedGroupAssignmentModal';
+import { generateUUID } from '../../utils/uuid';
 
 // Jalali month details
 const JALALI_MONTHS = [
@@ -208,12 +209,12 @@ const PerformanceMonitoringPage: React.FC = () => {
         if (!gridData) return;
         
         const newRecord: PerformanceRecord = {
-            id: `temp-${Date.now()}`,
+            id: generateUUID(),
             personnel_id: personnelId,
             day,
             shift_id: shiftId,
             base_id: baseId,
-            submitting_base_id: baseId,
+            submitting_base_id: user?.base_id || baseId,
             year_month: `${filters.year}-${filters.month}`
         };
         
@@ -224,15 +225,33 @@ const PerformanceMonitoringPage: React.FC = () => {
     };
     
     const handleSave = async (final: boolean = false) => {
-        if (!gridData) return;
+        if (!gridData) {
+            alert('هیچ داده‌ای برای ذخیره وجود ندارد');
+            return;
+        }
         
+        // Validate that we have user base info
+        if (!user?.base_id) {
+            alert('خطا: اطلاعات پایگاه کاربر یافت نشد');
+            return;
+        }
+        
+        setIsLoading(true);
         try {
+            // Ensure all records have proper IDs and structure
+            const validRecords = gridData.records.map(record => ({
+                ...record,
+                id: record.id || generateUUID(),
+                submitting_base_id: user.base_id,
+                year_month: `${filters.year}-${filters.month}`
+            }));
+            
             const status: 'draft' | 'submitted' = final ? 'submitted' : 'draft';
             const success = await savePerformanceDataForMonth(
                 filters.year,
                 filters.month,
-                gridData.records,
-                [],
+                validRecords,
+                [], // totals - will be calculated from records
                 status
             );
             
@@ -240,12 +259,18 @@ const PerformanceMonitoringPage: React.FC = () => {
                 alert(final ? 'اطلاعات با موفقیت نهایی شد' : 'اطلاعات با موفقیت ذخیره شد');
                 setIsDirty(false);
                 if (final) setEditMode('viewing');
+                
+                // Refresh data to get updated state
+                await handleApplyFilter();
             } else {
-                alert('خطا در ذخیره اطلاعات');
+                alert('خطا در ذخیره اطلاعات در دیتابیس');
             }
         } catch (error) {
-            console.error('Error saving:', error);
-            alert('خطا در ذخیره اطلاعات');
+            console.error('Error saving performance data:', error);
+            const errorMessage = error instanceof Error ? error.message : 'خطای ناشناخته';
+            alert(`خطا در ذخیره اطلاعات: ${errorMessage}`);
+        } finally {
+            setIsLoading(false);
         }
     };
     
@@ -590,12 +615,12 @@ const PerformanceMonitoringPage: React.FC = () => {
                                     // Create the specified number of records for this assignment
                                     for (let count = 0; count < assignment.count; count++) {
                                         const newRecord: PerformanceRecord = {
-                                            id: crypto.randomUUID(),
+                                            id: generateUUID(),
                                             personnel_id: personnelId,
                                             day,
                                             shift_id: assignment.shiftId,
                                             base_id: assignment.baseId,
-                                            submitting_base_id: assignment.baseId,
+                                            submitting_base_id: user?.base_id || assignment.baseId,
                                             year_month: `${filters.year}-${filters.month}`
                                         };
                                         newRecords.push(newRecord);

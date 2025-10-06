@@ -23,10 +23,11 @@ interface ShiftAssignment {
 }
 
 interface AdvancedFilter {
-    type: 'shift_count' | 'total_hours' | 'leave_days' | 'overtime_hours';
+    type: 'shift_count' | 'total_hours' | 'leave_days' | 'overtime_hours' | 'specific_shift_count';
     operator: 'less_than' | 'greater_than' | 'equal_to' | 'between';
     value1: number;
     value2?: number;
+    shiftId?: string; // For specific shift type filtering
 }
 
 // Utility function to get Jalali calendar days
@@ -74,6 +75,7 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
             let leaveDays = 0;
             let overtimeHours = 0;
             let shiftCounts: Record<string, number> = {};
+            let shiftTypeCounts: Record<string, number> = {};
             
             records.forEach(record => {
                 const shift = shifts.find(s => s.id === record.shift_id);
@@ -88,7 +90,11 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                         overtimeHours += shift.equivalent_hours;
                     }
                     
+                    // Count specific shifts
                     shiftCounts[shift.id] = (shiftCounts[shift.id] || 0) + 1;
+                    
+                    // Count by shift type
+                    shiftTypeCounts[shift.type] = (shiftTypeCounts[shift.type] || 0) + 1;
                 }
             });
             
@@ -97,6 +103,7 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                 leaveDays,
                 overtimeHours,
                 shiftCounts,
+                shiftTypeCounts,
                 totalShifts: records.length,
                 personnelData: p
             };
@@ -132,6 +139,14 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                     break;
                 case 'shift_count':
                     value = stats.totalShifts;
+                    break;
+                case 'specific_shift_count':
+                    // Count specific shift type occurrences
+                    if (filter.shiftId) {
+                        value = stats.shiftCounts[filter.shiftId] || 0;
+                    } else {
+                        value = 0;
+                    }
                     break;
             }
             
@@ -188,7 +203,8 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
         setAdvancedFilters(prev => [...prev, {
             type: 'shift_count',
             operator: 'less_than',
-            value1: 0
+            value1: 0,
+            shiftId: undefined
         }]);
     };
     
@@ -365,17 +381,33 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                         </div>
                         
                         {advancedFilters.map((filter, index) => (
-                            <div key={index} className="grid grid-cols-5 gap-2 mb-2 p-2 bg-white rounded">
+                            <div key={index} className="grid gap-2 mb-2 p-2 bg-white rounded" style={{ gridTemplateColumns: filter.type === 'specific_shift_count' ? 'repeat(6, 1fr)' : 'repeat(5, 1fr)' }}>
                                 <select
                                     value={filter.type}
-                                    onChange={(e) => updateAdvancedFilter(index, { type: e.target.value as any })}
+                                    onChange={(e) => updateAdvancedFilter(index, { type: e.target.value as any, shiftId: undefined })}
                                     className="text-xs border rounded p-1"
                                 >
                                     <option value="shift_count">تعداد شیفت</option>
                                     <option value="total_hours">مجموع ساعات</option>
                                     <option value="leave_days">روزهای مرخصی</option>
                                     <option value="overtime_hours">اضافه کار</option>
+                                    <option value="specific_shift_count">نوع شیفت خاص</option>
                                 </select>
+                                
+                                {filter.type === 'specific_shift_count' && (
+                                    <select
+                                        value={filter.shiftId || ''}
+                                        onChange={(e) => updateAdvancedFilter(index, { shiftId: e.target.value })}
+                                        className="text-xs border rounded p-1"
+                                    >
+                                        <option value="">انتخاب شیفت</option>
+                                        {shifts.map(shift => (
+                                            <option key={shift.id} value={shift.id}>
+                                                {shift.title} ({shift.code})
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
                                 
                                 <select
                                     value={filter.operator}
@@ -449,6 +481,14 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                             {selectionMode === 'advanced' && personnelStats[p.id] && (
                                 <span className="text-xs text-purple-600">
                                     ({personnelStats[p.id].totalShifts} شیفت، {personnelStats[p.id].totalHours}س)
+                                    {Object.entries(personnelStats[p.id].shiftCounts).length > 0 && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                            {Object.entries(personnelStats[p.id].shiftCounts).map(([shiftId, count]) => {
+                                                const shift = shifts.find(s => s.id === shiftId);
+                                                return shift ? `${shift.code}:${count}` : null;
+                                            }).filter(Boolean).join(', ')}
+                                        </div>
+                                    )}
                                 </span>
                             )}
                         </div>

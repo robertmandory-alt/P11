@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Personnel, PerformanceRecord, WorkShift, SubmissionStatus, PerformanceTotals } from '../../types';
 import Modal from '../../components/shared/Modal';
 import { PlusIcon, DeleteIcon, EditIcon, XIcon, ShareIcon } from '../../components/shared/Icons';
+import { generateUUID } from '../../utils/uuid';
 
 const JALALI_MONTHS = [
     { name: 'فروردین', value: 1, days: 31 }, { name: 'اردیبهشت', value: 2, days: 31 }, { name: 'خرداد', value: 3, days: 31 },
@@ -101,43 +102,74 @@ const PerformanceSubmitPage: React.FC = () => {
             return false;
         }
 
-        const yearMonthKey = `${filters.year}-${filters.month}`;
-        
-        // Filter records to only include those for personnel currently displayed in the table
-        const personnelInScopeIds = new Set(displayedPersonnel.map(p => p.id));
-        const recordsToSave = performanceRecords
-            .filter(r => personnelInScopeIds.has(r.personnel_id))
-            .map(r => ({ ...r, submitting_base_id: myBaseId, year_month: yearMonthKey }));
+        try {
+            const yearMonthKey = `${filters.year}-${filters.month}`;
             
-        const totalsToSave = monthlyTotals
-            .filter(t => personnelInScopeIds.has(t.personnel_id))
-            .map(t => ({ ...t, year_month: yearMonthKey }));
+            // Filter records to only include those for personnel currently displayed in the table
+            const personnelInScopeIds = new Set(displayedPersonnel.map(p => p.id));
+            const recordsToSave = performanceRecords
+                .filter(r => personnelInScopeIds.has(r.personnel_id))
+                .map(r => ({ 
+                    ...r, 
+                    id: r.id || generateUUID(),
+                    submitting_base_id: myBaseId, 
+                    year_month: yearMonthKey 
+                }));
+                
+            const totalsToSave = monthlyTotals
+                .filter(t => personnelInScopeIds.has(t.personnel_id))
+                .map(t => ({ ...t, year_month: yearMonthKey }));
 
-        const success = await savePerformanceDataForMonth(filters.year, filters.month, recordsToSave, totalsToSave, status);
-        
-        if (success) {
-            // Save UI-specific metadata locally
-            const metaData = { guestIds: guestPersonnelIds, removedBaseIds: removedBasePersonnelIds };
-            localStorage.setItem(getMetaKey(filters.year, filters.month), JSON.stringify(metaData));
-            setSubmissionStatus(status);
+            const success = await savePerformanceDataForMonth(filters.year, filters.month, recordsToSave, totalsToSave, status);
+            
+            if (success) {
+                // Save UI-specific metadata locally
+                const metaData = { guestIds: guestPersonnelIds, removedBaseIds: removedBasePersonnelIds };
+                localStorage.setItem(getMetaKey(filters.year, filters.month), JSON.stringify(metaData));
+                setSubmissionStatus(status);
+                
+                // Refresh data to get updated state
+                await handleApplyFilter();
+            }
+            
+            setIsLoading(false);
+            return success;
+        } catch (error) {
+            console.error('Error saving performance data:', error);
+            const errorMessage = error instanceof Error ? error.message : 'خطای ناشناخته';
+            alert(`خطا در ذخیره اطلاعات: ${errorMessage}`);
+            setIsLoading(false);
+            return false;
         }
-        
-        setIsLoading(false);
-        return success;
     };
 
     const handleSaveDraft = async () => {
-        if (await saveData('draft')) alert('با موفقیت ذخیره موقت شد.');
+        const success = await saveData('draft');
+        if (success) {
+            alert('با موفقیت ذخیره موقت شد.');
+        } else {
+            alert('خطا در ذخیره موقت اطلاعات');
+        }
     };
 
     const handleFinalSubmit = async () => {
         if (window.confirm('آیا از ثبت نهایی اطلاعات اطمینان دارید؟ پس از ثبت نهایی، جدول قفل خواهد شد.')) {
-            if (await saveData('submitted')) alert('با موفقیت ثبت و ارسال شد.');
+            const success = await saveData('submitted');
+            if (success) {
+                alert('با موفقیت ثبت و ارسال شد.');
+            } else {
+                alert('خطا در ثبت نهایی اطلاعات');
+            }
         }
     };
 
     const handleEdit = async () => {
-        if (await saveData('draft')) alert('حالت ویرایش فعال شد.');
+        const success = await saveData('draft');
+        if (success) {
+            alert('حالت ویرایش فعال شد.');
+        } else {
+            alert('خطا در فعال کردن حالت ویرایش');
+        }
     };
 
     const openCellModal = (personnelId: string, day: number) => {
@@ -157,7 +189,7 @@ const PerformanceSubmitPage: React.FC = () => {
             }
             // Add or Update record
             const newRecord: PerformanceRecord = {
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 ...currentCell,
                 ...recordData,
                 personnel_id: currentCell.personnel_id,
