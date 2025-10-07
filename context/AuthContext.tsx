@@ -239,9 +239,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const addPersonnel = async (p: Omit<Personnel, 'id'>) => {
-        const { data, error } = await supabase.from('personnel').insert(p).select().single();
-        if (data) { setPersonnel(prev => [...prev, data]); return data; }
-        return null;
+        try {
+            const { data, error } = await supabase.from('personnel').insert(p).select().single();
+            if (error) {
+                console.error("Error adding personnel:", error.message);
+                alert('خطا در افزودن پرسنل: ' + error.message);
+                return null;
+            }
+            if (data) { 
+                setPersonnel(prev => [...prev, data]); 
+                return data; 
+            }
+            return null;
+        } catch (error: any) {
+            console.error("Error adding personnel:", error.message);
+            alert('خطای غیرمنتظره در افزودن پرسنل: ' + error.message);
+            return null;
+        }
     }
     const updatePersonnel = async (p: Personnel) => {
         const { error } = await supabase.from('personnel').update({ ...p }).eq('id', p.id);

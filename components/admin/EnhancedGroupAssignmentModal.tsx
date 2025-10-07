@@ -55,6 +55,7 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
     
     // Day selection mode
     const [daySelectionMode, setDaySelectionMode] = useState<'grid' | 'quick'>('grid');
+    const [currentPersonnelIndex, setCurrentPersonnelIndex] = useState<number>(0);
     
     // Shift assignments
     const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignment[]>([{
@@ -265,13 +266,54 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
         updateShiftAssignment(assignmentIndex, { days: commonEmptyDays });
     };
     
-    const handleSubmit = () => {
-        const validAssignments = shiftAssignments.filter(a => 
-            a.shiftId && a.baseId && a.days.length > 0
-        );
+    // Function to automatically assign base for personnel
+    const getAutoAssignedBase = (personnelId: string): string => {
+        const person = personnel.find(p => p.id === personnelId);
+        if (!person) return bases[0]?.id || '';
         
-        if (validAssignments.length === 0) {
-            alert('لطفاً حداقل یک تخصیص معتبر ایجاد کنید');
+        // 1. If personnel has a fixed base assignment, use it
+        if (person.base_id) {
+            return person.base_id;
+        }
+        
+        // 2. Find the base where they worked most hours/shifts
+        const personnelRecords = performanceRecords.filter(r => r.personnel_id === personnelId);
+        if (personnelRecords.length > 0) {
+            const baseWorkCount: Record<string, number> = {};
+            
+            personnelRecords.forEach(record => {
+                const shift = shifts.find(s => s.id === record.shift_id);
+                if (shift && record.base_id) {
+                    baseWorkCount[record.base_id] = (baseWorkCount[record.base_id] || 0) + shift.equivalent_hours;
+                }
+            });
+            
+            // Return the base with most hours worked
+            const mostWorkedBase = Object.entries(baseWorkCount)
+                .sort(([,a], [,b]) => b - a)[0];
+            
+            if (mostWorkedBase) {
+                return mostWorkedBase[0];
+            }
+        }
+        
+        // 3. Default to first available base
+        return bases[0]?.id || '';
+    };
+
+    const handleSubmit = () => {
+        // Process assignments and apply automatic base assignment
+        const processedAssignments = shiftAssignments
+            .filter(a => a.shiftId && a.days.length > 0)
+            .map(assignment => ({
+                ...assignment,
+                baseId: assignment.baseId || getAutoAssignedBase(
+                    (selectionMode === 'manual' ? manualSelection : filteredPersonnel.map(p => p.id))[0]
+                )
+            }));
+        
+        if (processedAssignments.length === 0) {
+            alert('لطفاً حداقل یک تخصیص معتبر ایجاد کنید (شیفت و روز باید انتخاب شود)');
             return;
         }
         
@@ -282,7 +324,16 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
             return;
         }
         
-        onAssign(finalSelection, validAssignments);
+        // Apply automatic base assignment for each personnel
+        const finalAssignments = processedAssignments.map(assignment => {
+            if (!assignment.baseId) {
+                // If still no base, assign based on first selected personnel
+                assignment.baseId = getAutoAssignedBase(finalSelection[0]);
+            }
+            return assignment;
+        });
+        
+        onAssign(finalSelection, finalAssignments);
     };
     
     return (
@@ -474,23 +525,46 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                                     className="form-checkbox h-4 w-4"
                                 />
                             )}
-                            <span className="text-sm">{`${p.first_name || ''} ${p.last_name || ''}`.trim() || p.name}</span>
-                            <span className="text-xs text-gray-500">
-                                ({p.employment_status === 'permanent' ? 'رسمی' : 'طرحی'})
-                            </span>
-                            {selectionMode === 'advanced' && personnelStats[p.id] && (
-                                <span className="text-xs text-purple-600">
-                                    ({personnelStats[p.id].totalShifts} شیفت، {personnelStats[p.id].totalHours}س)
-                                    {Object.entries(personnelStats[p.id].shiftCounts).length > 0 && (
-                                        <div className="text-xs text-gray-500 mt-1">
-                                            {Object.entries(personnelStats[p.id].shiftCounts).map(([shiftId, count]) => {
-                                                const shift = shifts.find(s => s.id === shiftId);
-                                                return shift ? `${shift.code}:${count}` : null;
-                                            }).filter(Boolean).join(', ')}
-                                        </div>
-                                    )}
-                                </span>
-                            )}
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium">{`${p.first_name || ''} ${p.last_name || ''}`.trim() || p.name}</span>
+                                    <span className="text-xs text-gray-500">
+                                        ({p.employment_status === 'Official' ? 'رسمی' : 'طرحی'})
+                                    </span>
+                                </div>
+                                
+                                {/* Always show performance summary */}
+                                {personnelStats[p.id] && (
+                                    <div className="text-xs text-blue-600 mt-1">
+                                        <span className="inline-block mr-2">
+                                            📊 {personnelStats[p.id].totalShifts} شیفت
+                                        </span>
+                                        <span className="inline-block mr-2">
+                                            ⏱️ {personnelStats[p.id].totalHours}س کار
+                                        </span>
+                                        {personnelStats[p.id].overtimeHours > 0 && (
+                                            <span className="inline-block mr-2 text-orange-600">
+                                                ⏰ {personnelStats[p.id].overtimeHours}س اضافه‌کار
+                                            </span>
+                                        )}
+                                        {personnelStats[p.id].leaveDays > 0 && (
+                                            <span className="inline-block mr-2 text-green-600">
+                                                🏖️ {personnelStats[p.id].leaveDays} مرخصی
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                
+                                {/* Show shift type breakdown in advanced mode */}
+                                {selectionMode === 'advanced' && personnelStats[p.id] && Object.entries(personnelStats[p.id].shiftCounts).length > 0 && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        انواع شیفت: {Object.entries(personnelStats[p.id].shiftCounts).map(([shiftId, count]) => {
+                                            const shift = shifts.find(s => s.id === shiftId);
+                                            return shift ? `${shift.code}:${count}` : null;
+                                        }).filter(Boolean).join(', ')}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -527,13 +601,13 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                                 </div>
                                 
                                 <div>
-                                    <label className="block text-xs font-medium mb-1">پایگاه</label>
+                                    <label className="block text-xs font-medium mb-1">پایگاه (اختیاری)</label>
                                     <select
                                         value={assignment.baseId}
                                         onChange={(e) => updateShiftAssignment(index, { baseId: e.target.value })}
                                         className="w-full text-xs border rounded p-1"
                                     >
-                                        <option value="">انتخاب کنید</option>
+                                        <option value="">تخصیص خودکار</option>
                                         {bases.map(base => (
                                             <option key={base.id} value={base.id}>
                                                 {base.name}
@@ -546,10 +620,11 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                                     <label className="block text-xs font-medium mb-1">تعداد</label>
                                     <input
                                         type="number"
-                                        min="1"
+                                        min="0"
                                         value={assignment.count}
-                                        onChange={(e) => updateShiftAssignment(index, { count: parseInt(e.target.value) || 1 })}
+                                        onChange={(e) => updateShiftAssignment(index, { count: parseInt(e.target.value) || 0 })}
                                         className="w-full text-xs border rounded p-1"
+                                        placeholder="تعداد شیفت"
                                     />
                                 </div>
                                 
@@ -570,53 +645,184 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                                         onClick={() => setDaySelectionMode('grid')}
                                         className={`text-xs px-2 py-1 rounded ${daySelectionMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
                                     >
-                                        انتخاب روز
+                                        انتخاب روز به روز (تقویمی)
                                     </button>
                                     <button
                                         onClick={() => setDaySelectionMode('quick')}
                                         className={`text-xs px-2 py-1 rounded ${daySelectionMode === 'quick' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
                                     >
-                                        انتخاب سریع روز
+                                        پیدا کردن روزهای خالی
                                     </button>
                                 </div>
                                 
                                 {daySelectionMode === 'grid' ? (
                                     <div>
-                                        <div className="grid grid-cols-7 gap-1 mb-2">
-                                            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                                                const isSelected = assignment.days.includes(day);
-                                                const isHoliday = day % 7 === 5 || day % 7 === 6; // تعطیلات هفته
-                                                
-                                                return (
-                                                    <button
-                                                        key={day}
-                                                        onClick={() => handleDayToggle(index, day)}
-                                                        className={`
-                                                            text-xs p-1 rounded border
-                                                            ${isSelected ? 'bg-blue-600 text-white' : 'bg-white'}
-                                                            ${isHoliday ? 'border-red-300 text-red-600' : 'border-gray-300'}
-                                                        `}
-                                                    >
-                                                        {day}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <p className="text-xs text-gray-500">
-                                            روزهای انتخاب شده: {assignment.days.length > 0 ? assignment.days.join(', ') : 'هیچ'}
-                                        </p>
+                                        {/* Personnel Navigation for Individual Calendar View */}
+                                        {(() => {
+                                            const selectedPersonnel = selectionMode === 'manual' ? 
+                                                personnel.filter(p => manualSelection.includes(p.id)) : 
+                                                filteredPersonnel;
+                                            
+                                            if (selectedPersonnel.length === 0) {
+                                                return <div className="text-xs text-gray-500 p-2">لطفاً ابتدا پرسنل مورد نظر را انتخاب کنید</div>;
+                                            }
+                                            
+                                            const currentPersonnel = selectedPersonnel[currentPersonnelIndex] || selectedPersonnel[0];
+                                            const currentPersonnelOccupiedDays = getPersonnelOccupiedDays(currentPersonnel.id);
+                                            
+                                            return (
+                                                <div>
+                                                    {/* Personnel Navigator */}
+                                                    <div className="flex items-center justify-between mb-3 p-2 bg-gray-50 rounded">
+                                                        <button
+                                                            onClick={() => setCurrentPersonnelIndex(Math.max(0, currentPersonnelIndex - 1))}
+                                                            disabled={currentPersonnelIndex === 0}
+                                                            className="text-xs px-2 py-1 bg-blue-500 text-white rounded disabled:bg-gray-300"
+                                                        >
+                                                            ← قبلی
+                                                        </button>
+                                                        <div className="text-sm font-medium text-center">
+                                                            {currentPersonnel.name}
+                                                            <div className="text-xs text-gray-600">
+                                                                ({currentPersonnelIndex + 1} از {selectedPersonnel.length})
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setCurrentPersonnelIndex(Math.min(selectedPersonnel.length - 1, currentPersonnelIndex + 1))}
+                                                            disabled={currentPersonnelIndex === selectedPersonnel.length - 1}
+                                                            className="text-xs px-2 py-1 bg-blue-500 text-white rounded disabled:bg-gray-300"
+                                                        >
+                                                            بعدی →
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    {/* Calendar Grid for Current Personnel */}
+                                                    <div className="grid grid-cols-7 gap-1 mb-2">
+                                                        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                                                            const isSelected = assignment.days.includes(day);
+                                                            const isOccupied = currentPersonnelOccupiedDays.includes(day);
+                                                            const isHoliday = day % 7 === 5 || day % 7 === 6;
+                                                            
+                                                            return (
+                                                                <button
+                                                                    key={day}
+                                                                    onClick={() => handleDayToggle(index, day)}
+                                                                    className={`
+                                                                        text-xs p-1 rounded border relative
+                                                                        ${isSelected ? 'bg-blue-600 text-white border-blue-600' : 
+                                                                          isOccupied ? 'bg-red-100 text-red-800 border-red-300' :
+                                                                          'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}
+                                                                        ${isHoliday ? 'border-orange-300' : ''}
+                                                                    `}
+                                                                    title={isOccupied ? 'این روز قبلاً شیفت دارد' : 'روز خالی'}
+                                                                >
+                                                                    {day}
+                                                                    {isOccupied && <div className="absolute top-0 right-0 w-1 h-1 bg-red-600 rounded-full"></div>}
+                                                                    {isHoliday && <div className="absolute bottom-0 left-0 w-1 h-1 bg-orange-500 rounded-full"></div>}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    
+                                                    {/* Legend */}
+                                                    <div className="flex gap-2 text-xs mb-2">
+                                                        <span className="flex items-center gap-1">
+                                                            <div className="w-3 h-3 bg-blue-600 rounded"></div>
+                                                            انتخاب شده
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
+                                                            دارای شیفت
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <div className="w-3 h-3 bg-white border border-orange-300 rounded"></div>
+                                                            تعطیل
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    <p className="text-xs text-gray-500">
+                                                        روزهای انتخاب شده: {assignment.days.length > 0 ? assignment.days.join(', ') : 'هیچ'}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 ) : (
                                     <div>
-                                        <button
-                                            onClick={() => handleQuickSelectEmptyDays(index)}
-                                            className="text-xs bg-green-600 text-white px-3 py-1 rounded mb-2"
-                                        >
-                                            تخصیص به روزهای خالی
-                                        </button>
-                                        <p className="text-xs text-gray-500">
-                                            روزهای انتخاب شده: {assignment.days.length > 0 ? assignment.days.join(', ') : 'هیچ'}
-                                        </p>
+                                        {/* Quick Selection with Empty Days Display */}
+                                        {(() => {
+                                            const selectedPersonnel = selectionMode === 'manual' ? 
+                                                personnel.filter(p => manualSelection.includes(p.id)) : 
+                                                filteredPersonnel;
+                                                
+                                            if (selectedPersonnel.length === 0) {
+                                                return <div className="text-xs text-gray-500 p-2">لطفاً ابتدا پرسنل مورد نظر را انتخاب کنید</div>;
+                                            }
+                                            
+                                            // Find common empty days for all selected personnel
+                                            const commonEmptyDays: number[] = [];
+                                            for (let day = 1; day <= daysInMonth; day++) {
+                                                const isEmptyForAll = selectedPersonnel.every(person => {
+                                                    const occupiedDays = getPersonnelOccupiedDays(person.id);
+                                                    return !occupiedDays.includes(day);
+                                                });
+                                                if (isEmptyForAll) {
+                                                    commonEmptyDays.push(day);
+                                                }
+                                            }
+                                            
+                                            return (
+                                                <div>
+                                                    <div className="mb-3">
+                                                        <button
+                                                            onClick={() => handleQuickSelectEmptyDays(index)}
+                                                            className="text-xs bg-green-600 text-white px-3 py-1 rounded mb-2 w-full"
+                                                        >
+                                                            🔍 پیدا کردن روزهای خالی مشترک
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    {/* Show individual personnel empty days */}
+                                                    <div className="max-h-32 overflow-y-auto mb-2">
+                                                        {selectedPersonnel.map(person => {
+                                                            const personalEmptyDays = [];
+                                                            for (let day = 1; day <= daysInMonth; day++) {
+                                                                const occupiedDays = getPersonnelOccupiedDays(person.id);
+                                                                if (!occupiedDays.includes(day)) {
+                                                                    personalEmptyDays.push(day);
+                                                                }
+                                                            }
+                                                            
+                                                            return (
+                                                                <div key={person.id} className="text-xs border-b pb-1 mb-1">
+                                                                    <div className="font-medium text-gray-700">{person.name}:</div>
+                                                                    <div className="text-blue-600">
+                                                                        روزهای خالی: {personalEmptyDays.length > 0 ? 
+                                                                            personalEmptyDays.slice(0, 10).join(', ') + 
+                                                                            (personalEmptyDays.length > 10 ? ` و ${personalEmptyDays.length - 10} روز دیگر` : '') : 
+                                                                            'هیچ روز خالی'}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    
+                                                    {/* Common empty days */}
+                                                    <div className="text-xs bg-green-50 p-2 rounded mb-2">
+                                                        <div className="font-medium text-green-800">روزهای خالی مشترک:</div>
+                                                        <div className="text-green-600">
+                                                            {commonEmptyDays.length > 0 ? 
+                                                                commonEmptyDays.join(', ') : 
+                                                                'هیچ روز خالی مشترک وجود ندارد'}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <p className="text-xs text-gray-500">
+                                                        روزهای انتخاب شده: {assignment.days.length > 0 ? assignment.days.join(', ') : 'هیچ'}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
                             </div>

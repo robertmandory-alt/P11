@@ -478,9 +478,270 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
 };
 
 interface AddGuestModalProps { isOpen: boolean; onClose: () => void; onAdd: (selectedIds: string[]) => void; allPersonnel: Personnel[]; personnelInTable: Personnel[]; }
-const AddGuestModal: React.FC<AddGuestModalProps> = ({ isOpen, onClose, onAdd, allPersonnel, personnelInTable }) => { /* ... (Logic remains the same) ... */ return null };
+const AddGuestModal: React.FC<AddGuestModalProps> = ({ isOpen, onClose, onAdd, allPersonnel, personnelInTable }) => {
+    const [selected, setSelected] = useState<string[]>([]);
+    
+    // Filter out personnel who are already in the table
+    const availablePersonnel = allPersonnel.filter(p => 
+        !personnelInTable.some(tp => tp.id === p.id)
+    );
+    
+    const handleSelect = (id: string) => {
+        setSelected(prev => prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]);
+    };
+    
+    const handleSubmit = () => {
+        onAdd(selected);
+        setSelected([]);
+    };
+    
+    useEffect(() => {
+        if (isOpen) {
+            setSelected([]);
+        }
+    }, [isOpen]);
+    
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="افزودن پرسنل مهمان">
+            <div className="space-y-2 max-h-96 overflow-y-auto p-2">
+                {availablePersonnel.map(p => (
+                    <label key={p.id} className="flex items-center justify-between p-3 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <div className="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                checked={selected.includes(p.id)} 
+                                onChange={() => handleSelect(p.id)} 
+                                className="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" 
+                            />
+                            <div className="me-4">
+                                <span className="text-gray-800 font-medium">{p.name}</span>
+                                <p className="text-sm text-gray-500">{p.national_id}</p>
+                                <p className="text-xs text-gray-400">
+                                    {p.productivity_status === 'Productive' ? 'بهره‌ور' : 'غیر بهره‌ور'} - 
+                                    {p.employment_status === 'Official' ? ' رسمی' : ' طرحی'}
+                                </p>
+                            </div>
+                        </div>
+                    </label>
+                ))}
+                {availablePersonnel.length === 0 && (
+                    <p className="text-center text-gray-500 p-4">پرسنل دیگری برای افزودن به عنوان مهمان وجود ندارد.</p>
+                )}
+            </div>
+            <div className="flex justify-end pt-4 mt-4 border-t space-x-2 space-x-reverse">
+                <button 
+                    type="button" 
+                    onClick={onClose} 
+                    className="text-gray-500 bg-white hover:bg-gray-100 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5"
+                >
+                    انصراف
+                </button>
+                <button 
+                    onClick={handleSubmit} 
+                    disabled={selected.length === 0} 
+                    className="text-white bg-teal-600 hover:bg-teal-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                    افزودن ({selected.length})
+                </button>
+            </div>
+        </Modal>
+    );
+};
 interface QuickEntryModalProps { isOpen: boolean; onClose: () => void; onSave: (records: PerformanceRecord[], totals: { missions: number, meals: number }) => void; personnel: Personnel | null; baseId?: string; daysInMonth: number[]; existingRecords: PerformanceRecord[]; personnelTotals: { missions: number, meals: number } | undefined; }
 interface ScheduledShift { shiftId: string; days: number[]; }
-const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ isOpen, onClose, onSave, personnel, baseId, daysInMonth, existingRecords, personnelTotals }) => { /* ... (Logic needs careful adaptation to new record structure) ... */ return null };
+const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ isOpen, onClose, onSave, personnel, baseId, daysInMonth, existingRecords, personnelTotals }) => {
+    const { shifts, bases } = useAuth();
+    const [scheduledShifts, setScheduledShifts] = useState<ScheduledShift[]>([]);
+    const [missions, setMissions] = useState<number>(0);
+    const [meals, setMeals] = useState<number>(0);
+    
+    useEffect(() => {
+        if (isOpen && personnel) {
+            // Initialize with existing data
+            setMissions(personnelTotals?.missions || 0);
+            setMeals(personnelTotals?.meals || 0);
+            
+            // Group existing records by shift
+            const shiftGroups: Record<string, number[]> = {};
+            existingRecords.forEach(record => {
+                if (!shiftGroups[record.shift_id]) {
+                    shiftGroups[record.shift_id] = [];
+                }
+                shiftGroups[record.shift_id].push(record.day);
+            });
+            
+            const initialShifts: ScheduledShift[] = Object.entries(shiftGroups).map(([shiftId, days]) => ({
+                shiftId,
+                days: days.sort((a, b) => a - b)
+            }));
+            
+            setScheduledShifts(initialShifts.length > 0 ? initialShifts : [{ shiftId: '', days: [] }]);
+        }
+    }, [isOpen, personnel, existingRecords, personnelTotals]);
+    
+    const addShift = () => {
+        setScheduledShifts(prev => [...prev, { shiftId: '', days: [] }]);
+    };
+    
+    const updateShift = (index: number, updates: Partial<ScheduledShift>) => {
+        setScheduledShifts(prev => prev.map((shift, i) => 
+            i === index ? { ...shift, ...updates } : shift
+        ));
+    };
+    
+    const removeShift = (index: number) => {
+        setScheduledShifts(prev => prev.filter((_, i) => i !== index));
+    };
+    
+    const toggleDay = (shiftIndex: number, day: number) => {
+        const shift = scheduledShifts[shiftIndex];
+        const newDays = shift.days.includes(day) 
+            ? shift.days.filter(d => d !== day)
+            : [...shift.days, day].sort((a, b) => a - b);
+        
+        updateShift(shiftIndex, { days: newDays });
+    };
+    
+    const handleSave = () => {
+        if (!personnel || !baseId) return;
+        
+        const records: PerformanceRecord[] = [];
+        
+        scheduledShifts.forEach(scheduledShift => {
+            if (scheduledShift.shiftId && scheduledShift.days.length > 0) {
+                scheduledShift.days.forEach(day => {
+                    records.push({
+                        id: generateUUID(),
+                        personnel_id: personnel.id,
+                        shift_id: scheduledShift.shiftId,
+                        day: day,
+                        base_id: baseId,
+                        submitting_base_id: baseId,
+                        year_month: '' // Will be set by parent
+                    });
+                });
+            }
+        });
+        
+        onSave(records, { missions, meals });
+    };
+    
+    if (!personnel) return null;
+    
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`ثبت سریع کارکرد - ${personnel.name}`}>
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                {/* Mission and Meals Totals */}
+                <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">ماموریت</label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={missions}
+                            onChange={(e) => setMissions(parseInt(e.target.value) || 0)}
+                            className="w-full text-sm border border-gray-300 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">وعده غذایی</label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={meals}
+                            onChange={(e) => setMeals(parseInt(e.target.value) || 0)}
+                            className="w-full text-sm border border-gray-300 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+                </div>
+                
+                {/* Shift Assignments */}
+                <div>
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-medium text-gray-800">تخصیص شیفت‌ها</h4>
+                        <button
+                            onClick={addShift}
+                            className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                        >
+                            + افزودن شیفت
+                        </button>
+                    </div>
+                    
+                    {scheduledShifts.map((shift, shiftIndex) => (
+                        <div key={shiftIndex} className="border rounded-lg p-3 mb-3 bg-white">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">نوع شیفت</label>
+                                    <select
+                                        value={shift.shiftId}
+                                        onChange={(e) => updateShift(shiftIndex, { shiftId: e.target.value })}
+                                        className="w-full text-sm border border-gray-300 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="">انتخاب کنید</option>
+                                        {shifts.map(s => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.title} ({s.code})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {scheduledShifts.length > 1 && (
+                                    <button
+                                        onClick={() => removeShift(shiftIndex)}
+                                        className="text-red-600 hover:text-red-800 px-2 py-1"
+                                    >
+                                        <DeleteIcon className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                            
+                            {/* Day Selection Grid */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-2">روزهای کاری</label>
+                                <div className="grid grid-cols-7 gap-1">
+                                    {daysInMonth.map(day => (
+                                        <button
+                                            key={day}
+                                            onClick={() => toggleDay(shiftIndex, day)}
+                                            className={`
+                                                text-xs p-2 rounded border transition-colors
+                                                ${shift.days.includes(day) 
+                                                    ? 'bg-blue-600 text-white border-blue-600' 
+                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                }
+                                                ${day % 7 === 5 || day % 7 === 6 ? 'border-red-300 text-red-600' : ''}
+                                            `}
+                                        >
+                                            {day}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    روزهای انتخاب شده: {shift.days.length > 0 ? shift.days.join(', ') : 'هیچ'}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            
+            <div className="flex justify-end pt-4 mt-4 border-t space-x-2 space-x-reverse">
+                <button 
+                    type="button" 
+                    onClick={onClose} 
+                    className="text-gray-500 bg-white hover:bg-gray-100 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5"
+                >
+                    انصراف
+                </button>
+                <button 
+                    onClick={handleSave} 
+                    className="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-sm px-5 py-2.5"
+                >
+                    ذخیره
+                </button>
+            </div>
+        </Modal>
+    );
+};
 
 export default PerformanceSubmitPage;

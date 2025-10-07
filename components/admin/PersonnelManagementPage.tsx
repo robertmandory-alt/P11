@@ -20,26 +20,44 @@ const PersonnelManagementPage: React.FC = () => {
     };
 
     const handleSave = async (p: Personnel) => {
-        let success = false;
-        if (currentPersonnel && p.id) {
-            success = await updatePersonnel(p);
-        } else {
-            const newPersonnel = await addPersonnel({
-                name: `${p.first_name} ${p.last_name}`.trim(),
-                first_name: p.first_name,
-                last_name: p.last_name,
-                national_id: p.national_id,
-                employment_status: p.employment_status,
-                productivity_status: p.productivity_status,
-                driver_status: p.driver_status,
-                work_experience: p.work_experience
-            });
-            success = !!newPersonnel;
-        }
-        if (success) {
-            setIsModalOpen(false);
-        } else {
-            alert('خطا در ذخیره سازی اطلاعات پرسنل.');
+        try {
+            let success = false;
+            
+            // Validate required fields
+            if (!p.name || !p.national_id) {
+                alert('لطفاً نام کامل و کد ملی را وارد کنید.');
+                return;
+            }
+            
+            if (currentPersonnel && p.id) {
+                success = await updatePersonnel(p);
+                if (!success) {
+                    alert('خطا در ویرایش اطلاعات پرسنل.');
+                    return;
+                }
+            } else {
+                const personnelData = {
+                    name: p.name,
+                    national_id: p.national_id,
+                    employment_status: p.employment_status,
+                    productivity_status: p.productivity_status,
+                    driver_status: p.driver_status
+                };
+                
+                const newPersonnel = await addPersonnel(personnelData);
+                if (!newPersonnel) {
+                    // Error message is already shown by addPersonnel function
+                    return;
+                }
+                success = true;
+            }
+            
+            if (success) {
+                setIsModalOpen(false);
+            }
+        } catch (error: any) {
+            console.error('Unexpected error in handleSave:', error);
+            alert('خطای غیرمنتظره در ذخیره سازی اطلاعات.');
         }
     };
 
@@ -61,13 +79,7 @@ const PersonnelManagementPage: React.FC = () => {
         'Non-Driver': 'غیر راننده'
     }
 
-    const workExperienceMap: Record<string, string> = {
-        '0-4': '۰ تا ۴ سال',
-        '4-8': '۴ تا ۸ سال',
-        '8-12': '۸ تا ۱۲ سال',
-        '12-16': '۱۲ تا ۱۶ سال',
-        '16+': '۱۶ سال به بالا'
-    }
+
 
     return (
         <div className="space-y-6">
@@ -87,10 +99,8 @@ const PersonnelManagementPage: React.FC = () => {
                     <table className="w-full text-sm text-right text-gray-500">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                             <tr>
-                                <th scope="col" className="px-6 py-3">نام</th>
-                                <th scope="col" className="px-6 py-3">نام خانوادگی</th>
+                                <th scope="col" className="px-6 py-3">نام کامل</th>
                                 <th scope="col" className="px-6 py-3">کد ملی</th>
-                                <th scope="col" className="px-6 py-3">سابقه کاری</th>
                                 <th scope="col" className="px-6 py-3">وضعیت استخدامی</th>
                                 <th scope="col" className="px-6 py-3">وضعیت بهره‌وری</th>
                                 <th scope="col" className="px-6 py-3">وضعیت رانندگی</th>
@@ -100,10 +110,8 @@ const PersonnelManagementPage: React.FC = () => {
                         <tbody>
                             {personnel.map(p => (
                                 <tr key={p.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{p.first_name || p.name?.split(' ')[0] || ''}</td>
-                                    <td className="px-6 py-4 font-medium text-gray-900">{p.last_name || p.name?.split(' ').slice(1).join(' ') || ''}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{p.name}</td>
                                     <td className="px-6 py-4">{p.national_id}</td>
-                                    <td className="px-6 py-4">{p.work_experience ? workExperienceMap[p.work_experience] : '-'}</td>
                                     <td className="px-6 py-4">{statusMap[p.employment_status]}</td>
                                     <td className="px-6 py-4">
                                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${p.productivity_status === 'Productive' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
@@ -144,21 +152,14 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ isOpen, onClose, person
 
     React.useEffect(() => {
         if (personnel) {
-            setFormData({
-                ...personnel,
-                first_name: personnel.first_name || personnel.name?.split(' ')[0] || '',
-                last_name: personnel.last_name || personnel.name?.split(' ').slice(1).join(' ') || ''
-            });
+            setFormData(personnel);
         } else {
             setFormData({ 
                 name: '', 
-                first_name: '', 
-                last_name: '', 
                 national_id: '', 
                 employment_status: 'Official', 
                 productivity_status: 'Productive', 
-                driver_status: 'Non-Driver',
-                work_experience: undefined
+                driver_status: 'Non-Driver'
             });
         }
     }, [personnel, isOpen]);
@@ -170,41 +171,19 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ isOpen, onClose, person
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // Ensure name field is populated from first_name and last_name
-        const dataToSave = {
-            ...formData,
-            name: `${formData.first_name || ''} ${formData.last_name || ''}`.trim()
-        };
-        onSave(dataToSave as Personnel);
+        onSave(formData as Personnel);
     };
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={personnel ? 'ویرایش پرسنل' : 'افزودن پرسنل'}>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-900">نام</label>
-                        <input type="text" name="first_name" value={formData.first_name || ''} onChange={handleChange} className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required />
-                    </div>
-                    <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-900">نام خانوادگی</label>
-                        <input type="text" name="last_name" value={formData.last_name || ''} onChange={handleChange} className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
-                    </div>
+                <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-900">نام کامل</label>
+                    <input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" placeholder="نام و نام خانوادگی" required />
                 </div>
                 <div>
                     <label className="block mb-2 text-sm font-medium text-gray-900">کد ملی</label>
                     <input type="text" name="national_id" value={formData.national_id || ''} onChange={handleChange} className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required />
-                </div>
-                <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-900">سابقه کاری</label>
-                    <select name="work_experience" value={formData.work_experience || ''} onChange={handleChange} className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
-                        <option value="">انتخاب کنید</option>
-                        <option value="0-4">۰ تا ۴ سال</option>
-                        <option value="4-8">۴ تا ۸ سال</option>
-                        <option value="8-12">۸ تا ۱۲ سال</option>
-                        <option value="12-16">۱۲ تا ۱۶ سال</option>
-                        <option value="16+">۱۶ سال به بالا</option>
-                    </select>
                 </div>
                 <div>
                     <label className="block mb-2 text-sm font-medium text-gray-900">وضعیت استخدامی</label>
