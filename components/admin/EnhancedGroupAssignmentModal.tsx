@@ -740,9 +740,27 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                                                         </span>
                                                     </div>
                                                     
-                                                    <p className="text-xs text-gray-500">
-                                                        روزهای انتخاب شده: {assignment.days.length > 0 ? assignment.days.join(', ') : 'هیچ'}
-                                                    </p>
+                                                    {/* Summary section */}
+                                                    <div className="text-xs bg-gray-50 p-2 rounded mt-2">
+                                                        <div className="font-medium mb-1">خلاصه انتخاب:</div>
+                                                        <div>روزهای انتخاب شده: {assignment.days.length > 0 ? assignment.days.join(', ') : 'هیچ'}</div>
+                                                        {(() => {
+                                                            const selectedShift = shifts.find(s => s.id === assignment.shiftId);
+                                                            if (selectedShift && assignment.days.length > 0) {
+                                                                const totalHours = selectedShift.equivalent_hours * assignment.days.length * assignment.count;
+                                                                const overtimeHours = selectedShift.title.includes('اضافه') ? totalHours : 0;
+                                                                
+                                                                return (
+                                                                    <div className="mt-1 text-blue-600">
+                                                                        <div>مجموع کارکرد: {totalHours} ساعت</div>
+                                                                        {overtimeHours > 0 && <div>اضافه کار: {overtimeHours} ساعت</div>}
+                                                                        <div>تعداد {selectedShift.title}: {assignment.days.length * assignment.count}</div>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
                                                 </div>
                                             );
                                         })()}
@@ -817,9 +835,27 @@ const EnhancedGroupAssignmentModal: React.FC<EnhancedGroupAssignmentModalProps> 
                                                         </div>
                                                     </div>
                                                     
-                                                    <p className="text-xs text-gray-500">
-                                                        روزهای انتخاب شده: {assignment.days.length > 0 ? assignment.days.join(', ') : 'هیچ'}
-                                                    </p>
+                                                    {/* Summary for quick selection */}
+                                                    <div className="text-xs bg-gray-50 p-2 rounded mt-2">
+                                                        <div className="font-medium mb-1">خلاصه انتخاب:</div>
+                                                        <div>روزهای انتخاب شده: {assignment.days.length > 0 ? assignment.days.join(', ') : 'هیچ'}</div>
+                                                        {(() => {
+                                                            const selectedShift = shifts.find(s => s.id === assignment.shiftId);
+                                                            if (selectedShift && assignment.days.length > 0) {
+                                                                const totalHours = selectedShift.equivalent_hours * assignment.days.length * assignment.count;
+                                                                const overtimeHours = selectedShift.title.includes('اضافه') ? totalHours : 0;
+                                                                
+                                                                return (
+                                                                    <div className="mt-1 text-blue-600">
+                                                                        <div>مجموع کارکرد: {totalHours} ساعت</div>
+                                                                        {overtimeHours > 0 && <div>اضافه کار: {overtimeHours} ساعت</div>}
+                                                                        <div>تعداد {selectedShift.title}: {assignment.days.length * assignment.count}</div>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
                                                 </div>
                                             );
                                         })()}
