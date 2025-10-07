@@ -4,6 +4,7 @@ import { Personnel, PerformanceRecord, WorkShift, Base, PerformanceSubmission } 
 import { PlusIcon, SortIcon, SaveIcon, UndoIcon, RedoIcon, EyeIcon, EyeOffIcon, FilterIcon } from '../shared/Icons';
 import Modal from '../shared/Modal';
 import EnhancedGroupAssignmentModal from './EnhancedGroupAssignmentModal';
+import QuickShiftRegistration from '../shared/QuickShiftRegistration';
 import { generateUUID } from '../../utils/uuid';
 
 // Jalali month details
@@ -67,6 +68,7 @@ const PerformanceMonitoringPage: React.FC = () => {
     const [isShiftEditModalOpen, setIsShiftEditModalOpen] = useState(false);
     const [currentEditCell, setCurrentEditCell] = useState<{ personnelId: string; day: number } | null>(null);
     const [isGroupAssignModalOpen, setIsGroupAssignModalOpen] = useState(false);
+    const [isQuickShiftModalOpen, setIsQuickShiftModalOpen] = useState(false);
     
     // Add to history when records change
     const addToHistory = useCallback((records: PerformanceRecord[]) => {
@@ -203,6 +205,57 @@ const PerformanceMonitoringPage: React.FC = () => {
             setCurrentEditCell({ personnelId, day });
             setIsShiftEditModalOpen(true);
         }
+    };
+
+    // Delete operations for the operations column
+    const handleDeletePersonnelRow = (personnelId: string) => {
+        if (!gridData) return;
+        
+        const confirmDelete = window.confirm('آیا مطمئن هستید که می‌خواهید تمام رکوردهای این پرسنل را حذف کنید؟');
+        if (!confirmDelete) return;
+        
+        const updatedRecords = gridData.records.filter(record => record.personnel_id !== personnelId);
+        setGridData({ ...gridData, records: updatedRecords });
+        addToHistory(updatedRecords);
+        
+        const personnel = personnel.find(p => p.id === personnelId);
+        alert(`تمام رکوردهای ${personnel?.name || 'پرسنل'} حذف شد.`);
+    };
+
+    const handleDeleteAllShifts = (personnelId: string) => {
+        if (!gridData) return;
+        
+        const confirmDelete = window.confirm('آیا مطمئن هستید که می‌خواهید تمام شیفت‌های این پرسنل را حذف کنید؟');
+        if (!confirmDelete) return;
+        
+        const updatedRecords = gridData.records.filter(record => record.personnel_id !== personnelId);
+        setGridData({ ...gridData, records: updatedRecords });
+        addToHistory(updatedRecords);
+        
+        const personnelData = personnel.find(p => p.id === personnelId);
+        alert(`تمام شیفت‌های ${personnelData?.name || 'پرسنل'} حذف شد.`);
+    };
+
+    const handleDeleteAdminAddedShifts = (personnelId: string) => {
+        if (!gridData) return;
+        
+        const confirmDelete = window.confirm('آیا مطمئن هستید که می‌خواهید شیفت‌های اضافه شده توسط ادمین را حذف کنید؟');
+        if (!confirmDelete) return;
+        
+        // Assuming admin-added shifts have a specific identifier or are recent additions
+        // For now, we'll consider shifts added by current user's base as admin-added
+        const currentUserBaseId = user?.base_id;
+        
+        const updatedRecords = gridData.records.filter(record => 
+            record.personnel_id !== personnelId || 
+            record.submitting_base_id !== currentUserBaseId
+        );
+        
+        setGridData({ ...gridData, records: updatedRecords });
+        addToHistory(updatedRecords);
+        
+        const personnelData = personnel.find(p => p.id === personnelId);
+        alert(`شیفت‌های اضافه شده توسط ادمین برای ${personnelData?.name || 'پرسنل'} حذف شد.`);
     };
     
     const handleShiftUpdate = (personnelId: string, day: number, shiftId: string, baseId: string) => {
@@ -414,6 +467,12 @@ const PerformanceMonitoringPage: React.FC = () => {
                                         >
                                             🎯 تخصیص ویژه و سریع شیفت
                                         </button>
+                                        <button 
+                                            onClick={() => setIsQuickShiftModalOpen(true)}
+                                            className="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                                        >
+                                            🚀 ثبت سریع شیفت
+                                        </button>
                                     </>
                                 )}
                             </div>
@@ -478,6 +537,7 @@ const PerformanceMonitoringPage: React.FC = () => {
                                     {columnVisibility.overtime && <th className="p-2 border-b border-l min-w-[100px]">اضافه کار</th>}
                                     {columnVisibility.missionCount && <th className="p-2 border-b border-l min-w-[100px]">تعداد مأموریت</th>}
                                     {columnVisibility.mealCount && <th className="p-2 border-b border-l min-w-[100px]">تعداد وعده غذا</th>}
+                                    {editMode === 'editing' && <th className="p-2 border-b border-l min-w-[150px]">عملیات</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -537,6 +597,33 @@ const PerformanceMonitoringPage: React.FC = () => {
                                             {columnVisibility.overtime && <td className="p-2 border-l font-bold text-green-700">{totals.overtime}</td>}
                                             {columnVisibility.missionCount && <td className="p-2 border-l font-bold text-purple-700">{totals.missionCount}</td>}
                                             {columnVisibility.mealCount && <td className="p-2 border-l font-bold text-indigo-700">{totals.mealCount}</td>}
+                                            {editMode === 'editing' && (
+                                                <td className="p-1 border-l">
+                                                    <div className="flex flex-col gap-1">
+                                                        <button
+                                                            onClick={() => handleDeletePersonnelRow(p.id)}
+                                                            className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                                                            title="حذف ردیف پرسنل"
+                                                        >
+                                                            🗑️ حذف ردیف
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteAllShifts(p.id)}
+                                                            className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600"
+                                                            title="حذف تمام شیفت‌ها"
+                                                        >
+                                                            🧹 حذف شیفت‌ها
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteAdminAddedShifts(p.id)}
+                                                            className="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
+                                                            title="حذف شیفت‌های ادمین"
+                                                        >
+                                                            🎯 حذف ادمین
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            )}
                                         </tr>
                                     );
                                 })}
@@ -634,6 +721,25 @@ const PerformanceMonitoringPage: React.FC = () => {
                         setIsGroupAssignModalOpen(false);
                         
                         alert(`تخصیص گروهی با موفقیت انجام شد. ${personnelIds.length} پرسنل، ${assignments.length} نوع شیفت`);
+                    }}
+                />
+            )}
+
+            {isQuickShiftModalOpen && (
+                <QuickShiftRegistration
+                    isOpen={isQuickShiftModalOpen}
+                    onClose={() => setIsQuickShiftModalOpen(false)}
+                    personnel={personnel}
+                    shifts={shifts}
+                    bases={bases}
+                    year={filters.year}
+                    month={filters.month}
+                    onSave={(records) => {
+                        if (!gridData) return;
+                        
+                        const newRecords = [...gridData.records, ...records];
+                        setGridData({ ...gridData, records: newRecords });
+                        addToHistory(newRecords);
                     }}
                 />
             )}
